@@ -42,6 +42,7 @@ namespace ProjectPluto
         public const double RunMach = 3;
         public const double LookaheadStepM = 250;
         public const double LookaheadRangeM = 5000;
+        public const double LookaheadClimbDeg = 8;
         public const double MaxG = 6;
         public const double MaxClimbDeg = 30;
         public const double MaxDiveDeg = 15;
