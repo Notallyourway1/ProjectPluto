@@ -36,8 +36,24 @@ These are gameplay choices, not history:
 - **Three integrated boosters** (sources say "several" without a number), 1,500 kN for about 20 s.
 - **Reactor timing:** it warms up from booster ignition and reaches full power at burnout. The real
   reactor was only to be switched on at cruise altitude far from people.
-- **Reactor governor and SCRAM:** power is limited to what the airflow can cool; the core shuts down
-  (SCRAM) above 1,500 °C.
+- **Engine physics:** thrust comes from an ideal-ramjet model: air captured by a 0.8 m² scoop
+  (about 1,000 kg/s at Mach 3 at sea level, near Tory II-C's 910 kg/s), heated by the reactor to no
+  hotter than the 1,277 °C core, and expelled faster than it entered, with 85% inlet and nozzle
+  efficiency. That gives about 280 kN at Mach 3 at sea level (Tory II-C made about 170 kN at a
+  simulated Mach 2.8), nothing at rest, less in thin air, and no thrust near Mach 4.8, where ram
+  heating alone brings the air to core temperature.
+- **Reactor governor and SCRAM:** power is limited to the heat the airflow can carry away; the core
+  shuts down (SCRAM) above 1,500 °C.
+- **Airframe heat:** 0.2% of reactor power leaks into the structure, plus 50 kW per °C the core runs
+  above design temperature. KSP's heat system takes it from there.
+- **Radioactive exhaust trail:** fission fragments in the exhaust leave a faint haze line. Each
+  second of flight leaves a source of 0.5% of reactor power that decays over about a minute and is
+  gone after five, dosing kerbals underneath.
+- **Inlet unstart:** above Mach 4.5 the scoop unstarts and captures only 20% of its air, so thrust
+  and cooling collapse until the missile stays below Mach 4.0 for 2 s.
+- **Exhaust visuals:** the nozzle glows from dull red to orange with exhaust temperature, and the
+  exhaust shows faint red shock diamonds. With **Waterfall** installed, an optional patch uses
+  Waterfall's jet-exhaust plume instead; nothing else is needed without it.
 - **Radiation:** dose rate = 13,600 × (power / 600 MW) / distance² Sv/s, chosen so a Mach 3 pass
   150 m overhead gives about 0.28 Sv. Warnings at 0.1 and 1 Sv; **6 Sv is lethal**. A reactor
   destroyed while hot leaves a radiation source at 10% strength for 10 minutes.
@@ -63,8 +79,10 @@ These are gameplay choices, not history:
 2. **Booster burnout.** The boosters drop off by themselves, the reactor is at full power and the
    ramjet takes over. The right-click menu shows reactor state, power, core temperature and cooling
    airflow. You can **SCRAM** and **Restart** the reactor (restart needs the core below 800 °C).
-3. **Fly it yourself** for as long as you like. The ramjet breathes air only: it gives almost nothing
-   below Mach 1, peaks around Mach 3–4, and stops above the atmosphere.
+3. **Fly it yourself** for as long as you like. The ramjet breathes air only: it gives little below
+   Mach 1, is strongest low down around Mach 3, fades in thin air, and stops above the atmosphere.
+   The right-click menu adds exhaust temperature and inlet state. Keep below Mach 4.5 or the inlet
+   unstarts.
 4. **Pick a target** (any craft, a planted flag, or an active navigation waypoint), or none to fly a
    straight line.
 5. **Commence bombing run** (right-click menu or an action group). The missile dives to the run height
