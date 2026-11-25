@@ -49,10 +49,9 @@ namespace ProjectPluto
             if (IsPowered)
             {
                 double target = Clamp01(demand);
-                double step = dt / PlutoConstants.WarmupSeconds;
                 PowerFraction = PowerFraction < target
-                    ? Math.Min(target, PowerFraction + step)
-                    : Math.Max(target, PowerFraction - step);
+                    ? Math.Min(target, PowerFraction + dt / PlutoConstants.WarmupSeconds)
+                    : Math.Max(target, PowerFraction - dt * PlutoConstants.PowerDropPerSecond);
                 if (State == PlutoReactorState.Warming && PowerFraction >= target)
                     State = PlutoReactorState.Running;
             }

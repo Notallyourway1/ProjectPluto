@@ -29,7 +29,13 @@ namespace ProjectPluto
         private const float GlowTimeConstant = 3f;
 
         private ModuleEnginesFX ramjet;
+        private static readonly int EmissiveColorId = Shader.PropertyToID("_EmissiveColor");
+        private static readonly int EmissiveTextureId = Shader.PropertyToID("_Emissive");
+        private const double IdealGasConstant = 8.314462618; // J/(mol·K)
+
         private Material nozzleGlow;
+        private Color lastGlow = Color.clear;
+        private float ramjetIsp;
         private PlutoExhaustTrail trail;
         private readonly PlutoInlet inlet = new PlutoInlet();
         private float glowTempC = (float)PlutoConstants.AmbientC;
@@ -43,7 +49,7 @@ namespace ProjectPluto
             $"Unshielded nuclear reactor, {PlutoConstants.ReactorMaxMW:0} MW (Tory design power).\n" +
             $"Warms up in {PlutoConstants.WarmupSeconds:0} s from booster ignition.\n" +
             "Heats rammed air for thrust (ideal ramjet: no fuel, no thrust at rest,\n" +
-            "stops near Mach 4.8 where ram heating reaches core temperature).\n" +
+            "stops near Mach 4.8 at sea level, where ram heating reaches core temperature).\n" +
             "Needs that air for cooling; SCRAMs if it overheats.\n" +
             "Doses kerbals nearby with radiation.";
 
@@ -72,7 +78,15 @@ namespace ProjectPluto
             Transform nozzle = part.FindModelTransform(NozzleGlowTransform);
             Renderer nozzleRenderer = nozzle != null ? nozzle.GetComponent<Renderer>() : null;
             if (nozzleRenderer != null)
+            {
                 nozzleGlow = nozzleRenderer.material;
+                // Make sure the emissive map does not mask the glow out.
+                if (nozzleGlow.HasProperty(EmissiveTextureId))
+                    nozzleGlow.SetTexture(EmissiveTextureId, Texture2D.whiteTexture);
+                nozzleGlow.SetColor(EmissiveColorId, Color.black);
+            }
+            if (ramjet != null)
+                ramjetIsp = ramjet.atmosphereCurve.Evaluate(0f);
             if (HighLogic.LoadedSceneIsFlight)
             {
                 part.OnJustAboutToBeDestroyed += OnAboutToBeDestroyed;
@@ -84,6 +98,8 @@ namespace ProjectPluto
         public void OnDestroy()
         {
             trail?.Release();
+            if (nozzleGlow != null)
+                Destroy(nozzleGlow);
             if (part != null)
                 part.OnJustAboutToBeDestroyed -= OnAboutToBeDestroyed;
         }
@@ -122,8 +138,13 @@ namespace ProjectPluto
             double area = PlutoConstants.IntakeAreaM2 * inlet.CaptureFactor;
 
             // How much heat the rammed air can carry away decides cooling; the same physics gives thrust.
+            CelestialBody body = vessel.mainBody;
+            double gamma = body.atmosphereAdiabaticIndex > 1 ? body.atmosphereAdiabaticIndex : PlutoRamjet.Gamma;
+            double gasConstant = body.atmosphereMolarMass > 0
+                ? IdealGasConstant / body.atmosphereMolarMass
+                : PlutoRamjet.GasConstant;
             PlutoRamjet.Result air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
-                vessel.atmosphericTemperature, area);
+                vessel.atmosphericTemperature, area, gamma, gasConstant);
             double flow = air.CoolingFraction;
             double demand = Model.State == PlutoReactorState.Warming
                 ? 1
@@ -138,7 +159,7 @@ namespace ProjectPluto
                 RefreshControls();
 
             air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
-                vessel.atmosphericTemperature, area);
+                vessel.atmosphericTemperature, area, gamma, gasConstant);
             ApplyThrust(air.ThrustN);
             RecordTrail(air.ThrustN);
             double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);
@@ -167,7 +188,12 @@ namespace ProjectPluto
             float target = running ? exhaustTempC : (float)PlutoConstants.AmbientC;
             glowTempC += (target - glowTempC) * (1f - Mathf.Exp(-Time.deltaTime / GlowTimeConstant));
             PlutoGlow.ColorForTemp(glowTempC, out double r, out double g, out double b);
-            nozzleGlow.SetColor("_EmissiveColor", new Color((float)r, (float)g, (float)b, 1f));
+            var colour = new Color((float)r, (float)g, (float)b, 1f);
+            // Skip the material update when the change cannot be seen.
+            if (Mathf.Abs(colour.r - lastGlow.r) + Mathf.Abs(colour.g - lastGlow.g) < 0.004f)
+                return;
+            lastGlow = colour;
+            nozzleGlow.SetColor(EmissiveColorId, colour);
         }
 
         // While the ramjet is pushing, fission fragments in the exhaust leave a radioactive trail.
@@ -175,12 +201,13 @@ namespace ProjectPluto
         {
             if (!Model.IsPowered || thrustN <= 0 || ramjet == null || ramjet.thrustTransforms.Count == 0)
                 return;
-            if (trail == null || trail.Body != vessel.mainBody)
+            double now = Planetarium.GetUniversalTime();
+            if (trail == null || trail.Body != vessel.mainBody || now - trail.LastRecord > PlutoExhaustTrail.GapSeconds)
             {
                 trail?.Release();
-                trail = PlutoExhaustTrail.Create(vessel.mainBody);
+                trail = PlutoExhaustTrail.Create(vessel.mainBody, vessel);
             }
-            trail.Record(ramjet.thrustTransforms[0].position, Model.PowerMW, Planetarium.GetUniversalTime());
+            trail.Record(ramjet.thrustTransforms[0].position, Model.PowerMW, now);
         }
 
         // The ramjet's thrust comes from the physics model; KSP's engine only delivers it.
@@ -188,12 +215,12 @@ namespace ProjectPluto
         {
             if (ramjet == null)
                 return;
-            double throttle = vessel != null ? vessel.ctrlState.mainThrottle : 1;
+            // The throttle KSP's engine actually applies (no spool lag: useEngineResponseTime is off).
+            double throttle = ramjet.EngineIgnited ? ramjet.currentThrottle : 0;
             float rating = (float)PlutoRamjet.EngineRatingKN(thrustN, throttle);
             ramjet.thrustPercentage = 100f;
             ramjet.maxThrust = rating;
-            float isp = ramjet.atmosphereCurve.Evaluate(0f);
-            ramjet.maxFuelFlow = isp > 0 ? rating / (isp * ramjet.g) : 0f;
+            ramjet.maxFuelFlow = ramjetIsp > 0 ? rating / (ramjetIsp * ramjet.g) : 0f;
         }
 
         [KSPEvent(guiActive = true, guiName = "SCRAM reactor")]

@@ -15,9 +15,14 @@ namespace ProjectPluto
 
         public const double MaxRatingKN = 5000;
 
-        // Rated thrust to give KSP's engine, which multiplies it by throttle, so the result is thrustN.
-        public static double EngineRatingKN(double thrustN, double throttle) =>
-            thrustN <= 0 ? 0 : Math.Min(MaxRatingKN, thrustN / 1000 / Math.Max(throttle, 0.01));
+        // Rated thrust to give KSP's engine, which multiplies it by the throttle it applies, so the result is
+        // thrustN. Near-zero throttle gives no rating (and so no thrust), never a huge one.
+        public static double EngineRatingKN(double thrustN, double throttle)
+        {
+            if (thrustN <= 0 || throttle < 0.005)
+                return 0;
+            return Math.Min(MaxRatingKN, thrustN / 1000 / Math.Max(throttle, 0.05));
+        }
 
         public struct Result
         {
@@ -30,16 +35,17 @@ namespace ProjectPluto
             public double CoolingFraction;
         }
 
+        // gamma and gasConstant default to air; pass the body's own (Kopernicus atmospheres) when known.
         public static Result Compute(double reactorPowerW, double densityKgM3, double speedMs, double ambientTempK,
-            double intakeAreaM2 = PlutoConstants.IntakeAreaM2)
+            double intakeAreaM2 = PlutoConstants.IntakeAreaM2, double gamma = Gamma, double gasConstant = GasConstant)
         {
-            var r = new Result();
+            var r = new Result { StagnationTempK = ambientTempK, ExitTempK = ambientTempK };
             if (densityKgM3 <= 0 || speedMs <= 0 || ambientTempK <= 0)
                 return r;
 
-            double soundSpeed = Math.Sqrt(Gamma * GasConstant * ambientTempK);
+            double soundSpeed = Math.Sqrt(gamma * gasConstant * ambientTempK);
             double mach = speedMs / soundSpeed;
-            r.StagnationTempK = ambientTempK * (1 + 0.5 * (Gamma - 1) * mach * mach);
+            r.StagnationTempK = ambientTempK * (1 + 0.5 * (gamma - 1) * mach * mach);
             r.MassFlowKgS = densityKgM3 * speedMs * intakeAreaM2;
             r.ExitTempK = r.StagnationTempK;
 

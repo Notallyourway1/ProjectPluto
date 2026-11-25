@@ -10,6 +10,8 @@ namespace ProjectPluto
         public const double ScramTempC = 1500;
         public const double RestartTempC = 800;
         public const double WarmupSeconds = 20;
+        // Control rods can cut power much faster than it can be raised: up to 500% of full power per second.
+        public const double PowerDropPerSecond = 5;
         // Heat reaching the airframe: a steady leak (gamma heating of the structure) plus soak from a core
         // running above design temperature. Gameplay estimates.
         public const double StructureLeakFraction = 0.002;

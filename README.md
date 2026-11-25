@@ -40,20 +40,23 @@ These are gameplay choices, not history:
   (about 1,000 kg/s at Mach 3 at sea level, near Tory II-C's 910 kg/s), heated by the reactor to no
   hotter than the 1,277 °C core, and expelled faster than it entered, with 85% inlet and nozzle
   efficiency. That gives about 280 kN at Mach 3 at sea level (Tory II-C made about 170 kN at a
-  simulated Mach 2.8), nothing at rest, less in thin air, and no thrust near Mach 4.8, where ram
-  heating alone brings the air to core temperature.
-- **Reactor governor and SCRAM:** power is limited to the heat the airflow can carry away; the core
-  shuts down (SCRAM) above 1,500 °C.
+  simulated Mach 2.8), nothing at rest, less in thin air, and no thrust near Mach 4.8 at sea level
+  (higher in colder air), where ram heating alone brings the air to core temperature. Other planets'
+  atmospheres use their own gas properties.
+- **Reactor governor and SCRAM:** power is limited to the heat the airflow can carry away. Power
+  rises at 5% a second but control rods can cut it at up to 500% a second, so a sudden loss of air
+  (inlet unstart, booster burnout) is ridden out; the core still shuts down (SCRAM) above 1,500 °C.
 - **Airframe heat:** 0.2% of reactor power leaks into the structure, plus 50 kW per °C the core runs
-  above design temperature. KSP's heat system takes it from there.
+  above design temperature. KSP's heat system takes it from there. At normal operation this is a
+  small effect next to aerodynamic heating at Mach 3.
 - **Radioactive exhaust trail:** fission fragments in the exhaust leave a faint haze line. Each
   second of flight leaves a source of 0.5% of reactor power that decays over about a minute and is
   gone after five, dosing kerbals underneath.
 - **Inlet unstart:** above Mach 4.5 the scoop unstarts and captures only 20% of its air, so thrust
   and cooling collapse until the missile stays below Mach 4.0 for 2 s.
 - **Exhaust visuals:** the nozzle glows from dull red to orange with exhaust temperature, and the
-  exhaust shows faint red shock diamonds. With **Waterfall** installed, an optional patch uses
-  Waterfall's jet-exhaust plume instead; nothing else is needed without it.
+  exhaust shows faint red shock diamonds. With **Waterfall** and **Stock Waterfall Effects**
+  installed, an optional patch uses their jet-exhaust plume instead; nothing else is needed without them.
 - **Radiation:** dose rate = 13,600 × (power / 600 MW) / distance² Sv/s, chosen so a Mach 3 pass
   150 m overhead gives about 0.28 Sv. Warnings at 0.1 and 1 Sv; **6 Sv is lethal**. A reactor
   destroyed while hot leaves a radiation source at 10% strength for 10 minutes.

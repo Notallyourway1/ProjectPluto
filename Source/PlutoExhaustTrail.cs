@@ -5,10 +5,15 @@ namespace ProjectPluto
 {
     // The radioactive exhaust trail left by a running Pluto ramjet. It is its own object so it lingers
     // after the missile has gone; it doses crew under it and draws as a faint, fading haze line.
+    // The line lives in the planet's own frame, so it only needs rebuilding when points change.
     public sealed class PlutoExhaustTrail : MonoBehaviour
     {
         // Beyond this a trail point's dose is negligible; skip it.
         private const float DoseRangeM = 3000f;
+        // Dose is integrated at 10 Hz; the total does not need physics-rate updates.
+        private const double DoseIntervalSeconds = 0.1;
+        // A pause longer than this (SCRAM, shutdown) starts a new trail instead of joining the gap.
+        public const double GapSeconds = 3;
         private const float WidthM = 8f;
         private static readonly Color Haze = new Color(0.72f, 0.76f, 0.66f, 1f);
         private static readonly string[] ShaderNames =
@@ -20,21 +25,33 @@ namespace ProjectPluto
 
         private readonly PlutoTrailModel model = new PlutoTrailModel();
         private readonly List<Part> crewedParts = new List<Part>();
+        private readonly Vector3[] linePoints = new Vector3[PlutoTrailModel.MaxPoints + 1];
+        private readonly Vector3[] worldPoints = new Vector3[PlutoTrailModel.MaxPoints];
+        private readonly double[] strengths = new double[PlutoTrailModel.MaxPoints];
         private CelestialBody body;
+        private Vessel source;
         private LineRenderer line;
-        private Vector3[] positions = new Vector3[0];
-        private Vector3[] dosePoints = new Vector3[0];
+        private Material material;
         private bool ownerAlive = true;
+        private bool hasLive;
+        private Vector3 liveLocal;
+        private int drawnCount = -1;
+        private double lastRecord = double.NegativeInfinity;
+        private double doseTimer;
 
         public CelestialBody Body => body;
+        public double LastRecord => lastRecord;
 
-        public static PlutoExhaustTrail Create(CelestialBody body)
+        public static PlutoExhaustTrail Create(CelestialBody body, Vessel source)
         {
             var go = new GameObject("Pluto exhaust trail");
+            // Parented to the planet: its points stay put through floating-origin shifts and rotation.
+            go.transform.SetParent(body.transform, false);
             var trail = go.AddComponent<PlutoExhaustTrail>();
             trail.body = body;
+            trail.source = source;
             trail.line = go.AddComponent<LineRenderer>();
-            trail.line.useWorldSpace = true;
+            trail.line.useWorldSpace = false;
             trail.line.widthMultiplier = WidthM;
             trail.line.numCapVertices = 2;
             trail.line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -47,17 +64,38 @@ namespace ProjectPluto
                     break;
             }
             if (shader != null)
-                trail.line.material = new Material(shader) { mainTexture = Texture2D.whiteTexture };
+            {
+                trail.material = new Material(shader) { mainTexture = Texture2D.whiteTexture };
+                trail.line.material = trail.material;
+            }
             else
                 trail.line.enabled = false;
             return trail;
         }
 
-        public void Record(Vector3 worldPosition, double powerMW, double now) =>
+        // Drops a trail point when due, and keeps the line's head at the nozzle.
+        public void Record(Vector3 worldPosition, double powerMW, double now)
+        {
             model.AddIfDue(PlutoFallingObject.ToLocalPoint(body, worldPosition), powerMW, now);
+            liveLocal = body.transform.InverseTransformPoint(worldPosition);
+            hasLive = true;
+            lastRecord = now;
+            drawnCount = -1;
+        }
 
-        // The missile stopped feeding this trail (destroyed, changed body or shut down for good).
-        public void Release() => ownerAlive = false;
+        // The missile stopped feeding this trail (destroyed, changed body or paused too long).
+        public void Release()
+        {
+            ownerAlive = false;
+            hasLive = false;
+            drawnCount = -1;
+        }
+
+        private void OnDestroy()
+        {
+            if (material != null)
+                Destroy(material);
+        }
 
         private void FixedUpdate()
         {
@@ -67,14 +105,23 @@ namespace ProjectPluto
                 return;
             }
             double now = Planetarium.GetUniversalTime();
+            int before = model.Count;
             model.Prune(now);
+            if (model.Count != before)
+                drawnCount = -1;
             if (model.Count == 0)
             {
                 if (!ownerAlive)
                     Destroy(gameObject);
                 return;
             }
-            Irradiate(now, TimeWarp.fixedDeltaTime);
+
+            doseTimer += TimeWarp.fixedDeltaTime;
+            if (doseTimer >= DoseIntervalSeconds)
+            {
+                Irradiate(now, doseTimer);
+                doseTimer = 0;
+            }
         }
 
         private void Irradiate(double now, double dt)
@@ -82,10 +129,26 @@ namespace ProjectPluto
             PlutoRadiationScenario scenario = PlutoRadiationScenario.Instance;
             if (scenario == null)
                 return;
+
+            int count = model.Count;
+            // Bounding sphere of the trail, to skip whole vessels that are far from all of it.
+            Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+            for (int i = 0; i < count; i++)
+            {
+                worldPoints[i] = PlutoFallingObject.ToWorldPoint(body, model[i].Position);
+                strengths[i] = model.StrengthMW(i, now);
+                min = Vector3.Min(min, worldPoints[i]);
+                max = Vector3.Max(max, worldPoints[i]);
+            }
+            Vector3 centre = (min + max) * 0.5f;
+            float reach = (max - min).magnitude * 0.5f + DoseRangeM;
+
             crewedParts.Clear();
             foreach (Vessel v in FlightGlobals.VesselsLoaded)
             {
-                if (v == null || v.mainBody != body)
+                if (v == null || v == source || v.mainBody != body)
+                    continue;
+                if ((v.transform.position - centre).sqrMagnitude > reach * reach)
                     continue;
                 foreach (Part p in v.parts)
                 {
@@ -93,14 +156,6 @@ namespace ProjectPluto
                         crewedParts.Add(p);
                 }
             }
-            if (crewedParts.Count == 0)
-                return;
-
-            int count = model.Count;
-            if (dosePoints.Length < count)
-                dosePoints = new Vector3[PlutoTrailModel.MaxPoints];
-            for (int i = 0; i < count; i++)
-                dosePoints[i] = PlutoFallingObject.ToWorldPoint(body, model[i].Position);
 
             foreach (Part p in crewedParts)
             {
@@ -110,9 +165,9 @@ namespace ProjectPluto
                 double sv = 0;
                 for (int i = 0; i < count; i++)
                 {
-                    float distance = (dosePoints[i] - where).magnitude;
+                    float distance = (worldPoints[i] - where).magnitude;
                     if (distance < DoseRangeM)
-                        sv += PlutoRadiation.DoseRate(model.StrengthMW(i, now), distance) * dt;
+                        sv += PlutoRadiation.DoseRate(strengths[i], distance) * dt;
                 }
                 if (sv > 0)
                     scenario.DosePart(p.vessel, p, sv);
@@ -122,19 +177,31 @@ namespace ProjectPluto
 
         private void LateUpdate()
         {
-            if (line == null || body == null || !line.enabled)
+            if (line == null || !line.enabled)
                 return;
             int count = model.Count;
-            if (positions.Length != count)
-                positions = new Vector3[count];
-            for (int i = 0; i < count; i++)
-                positions[i] = PlutoFallingObject.ToWorldPoint(body, model[i].Position);
-            line.positionCount = count;
-            line.SetPositions(positions);
+            int total = count + (hasLive && count > 0 ? 1 : 0);
+            if (total != drawnCount)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    PlutoVec p = model[i].Position;
+                    linePoints[i] = new Vector3((float)p.X, (float)p.Y, (float)p.Z);
+                }
+                if (total > count)
+                    linePoints[count] = liveLocal;
+                line.positionCount = total;
+                line.SetPositions(linePoints);
+                drawnCount = total;
+            }
+            else if (hasLive && count > 0)
+            {
+                line.SetPosition(count, liveLocal);
+            }
             if (count == 0)
                 return;
 
-            // Oldest end faint, newest end strongest; overall strength follows the newest point's age.
+            // Oldest end faint, newest end strongest.
             double now = Planetarium.GetUniversalTime();
             float newest = (float)model.Fade(count - 1, now);
             float oldest = (float)model.Fade(0, now);
