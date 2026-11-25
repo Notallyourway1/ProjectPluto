@@ -3,3 +3,4 @@ Tests.exe
 .DS_Store
 tools/
 .superpowers/
+GameData/ProjectPluto/Plugins/*.dll
