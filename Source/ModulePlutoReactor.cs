@@ -120,6 +120,9 @@ namespace ProjectPluto
             air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
                 vessel.atmosphericTemperature);
             ApplyThrust(air.ThrustN);
+            double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);
+            if (heatKW > 0 && Model.State != PlutoReactorState.Breached)
+                part.AddThermalFlux(heatKW);
             exhaustTempC = (float)(air.ExitTempK - 273.15);
             if (Model.IsPowered)
             {

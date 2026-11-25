@@ -10,6 +10,10 @@ namespace ProjectPluto
         public const double ScramTempC = 1500;
         public const double RestartTempC = 800;
         public const double WarmupSeconds = 20;
+        // Heat reaching the airframe: a steady leak (gamma heating of the structure) plus soak from a core
+        // running above design temperature. Gameplay estimates.
+        public const double StructureLeakFraction = 0.002;
+        public const double HotCoreKWPerK = 50;
         public const double TempTimeConstant = 10;
         // Scoop capture area (gameplay choice; gives about 1,000 kg/s at Mach 3 at sea level, near Tory II-C's 910 kg/s).
         public const double IntakeAreaM2 = 0.8;

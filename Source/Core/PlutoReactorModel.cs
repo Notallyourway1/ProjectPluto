@@ -71,6 +71,11 @@ namespace ProjectPluto
         public static double GovernedDemand(double throttle, double airflowFraction) =>
             Math.Min(Clamp01(throttle), Clamp01(airflowFraction));
 
+        // Heat flowing into the missile's structure, in kW.
+        public static double StructureHeatKW(double powerMW, double coreTempC) =>
+            Math.Max(0, powerMW) * 1000 * PlutoConstants.StructureLeakFraction
+            + Math.Max(0, coreTempC - PlutoConstants.CoreTempFullC) * PlutoConstants.HotCoreKWPerK;
+
         public string Save() => string.Join(";",
             State.ToString(),
             PowerFraction.ToString("R", CultureInfo.InvariantCulture),
