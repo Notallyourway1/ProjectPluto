@@ -21,6 +21,8 @@ namespace ProjectPluto
         public float airflow;
         [KSPField(guiActive = true, guiName = "Exhaust temperature", guiFormat = "F0", guiUnits = " °C")]
         public float exhaustTempC;
+        [KSPField(guiActive = true, guiName = "Inlet")]
+        public string inletText = "Started";
 
         private const string NozzleGlowTransform = "NozzleGlow";
         // Seconds for the nozzle to heat up or cool down visibly.
@@ -29,6 +31,7 @@ namespace ProjectPluto
         private ModuleEnginesFX ramjet;
         private Material nozzleGlow;
         private PlutoExhaustTrail trail;
+        private readonly PlutoInlet inlet = new PlutoInlet();
         private float glowTempC = (float)PlutoConstants.AmbientC;
         private ModulePlutoBoosters boosters;
         private bool breachHandled;
@@ -103,9 +106,24 @@ namespace ProjectPluto
                 Model.Start();
 
             double dt = TimeWarp.fixedDeltaTime;
+            // Inlet overspeed: an unstarted scoop captures only a fraction of its air.
+            switch (inlet.Update(dt, vessel.mach))
+            {
+                case PlutoInlet.Change.Unstarted:
+                    ScreenMessages.PostScreenMessage(
+                        $"Inlet unstart above Mach {PlutoConstants.UnstartMach:0.0}: thrust and cooling lost. " +
+                        $"Slow below Mach {PlutoConstants.RestartMach:0.0} to restart.", 6f, ScreenMessageStyle.UPPER_CENTER);
+                    break;
+                case PlutoInlet.Change.Restarted:
+                    ScreenMessages.PostScreenMessage("Inlet restarted.", 3f, ScreenMessageStyle.UPPER_CENTER);
+                    break;
+            }
+            inletText = inlet.Started ? "Started" : "UNSTARTED";
+            double area = PlutoConstants.IntakeAreaM2 * inlet.CaptureFactor;
+
             // How much heat the rammed air can carry away decides cooling; the same physics gives thrust.
             PlutoRamjet.Result air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
-                vessel.atmosphericTemperature);
+                vessel.atmosphericTemperature, area);
             double flow = air.CoolingFraction;
             double demand = Model.State == PlutoReactorState.Warming
                 ? 1
@@ -120,7 +138,7 @@ namespace ProjectPluto
                 RefreshControls();
 
             air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
-                vessel.atmosphericTemperature);
+                vessel.atmosphericTemperature, area);
             ApplyThrust(air.ThrustN);
             RecordTrail(air.ThrustN);
             double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);

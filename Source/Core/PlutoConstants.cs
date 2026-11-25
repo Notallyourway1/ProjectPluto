@@ -17,6 +17,12 @@ namespace ProjectPluto
         public const double TempTimeConstant = 10;
         // Scoop capture area (gameplay choice; gives about 1,000 kg/s at Mach 3 at sea level, near Tory II-C's 910 kg/s).
         public const double IntakeAreaM2 = 0.8;
+        // Inlet overspeed (gameplay estimate): above UnstartMach the scoop unstarts and captures only
+        // UnstartCapture of its air until held below RestartMach for RestartSeconds.
+        public const double UnstartMach = 4.5;
+        public const double RestartMach = 4.0;
+        public const double RestartSeconds = 2;
+        public const double UnstartCapture = 0.2;
 
         // Radiation: dose rate = DoseK × (power / 600 MW) / r², in Sv/s with r in metres.
         // Calibrated so a Mach 3 pass 150 m overhead at full power gives about 0.28 Sv.
