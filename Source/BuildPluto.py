@@ -157,10 +157,10 @@ def build_model(Mu, asset_dir):
         obj.tag_and_layer.tag, obj.tag_and_layer.layer = "Untagged", 0
         return obj
 
-    def visible(obj, mesh):
+    def visible(obj, mesh, material_index=0):
         obj.shared_mesh = mesh
         obj.renderer = Mu.MuRenderer()
-        obj.renderer.materials = [0]
+        obj.renderer.materials = [material_index]
 
     def convex_collider(name, mesh, position=(0, 0, 0)):
         col = node(name, position)
@@ -179,10 +179,14 @@ def build_model(Mu, asset_dir):
     body = node("Body")
     body_mesh = new_mesh(Mu)
     add_lathe(body_mesh, BODY, 40, caps=True)
-    # Dark nozzle insert.
-    add_lathe(body_mesh, [(BASE - 0.02, 0.0), (BASE - 0.01, 0.5), (BASE + 0.3, 0.5)], 24, uv=swatch["dark"])
     visible(body, body_mesh)
     root.children.append(body)
+    # Nozzle insert with its own emissive material: the plugin makes it glow with exhaust temperature.
+    nozzle = node("NozzleGlow")
+    nozzle_mesh = new_mesh(Mu)
+    add_lathe(nozzle_mesh, [(BASE - 0.02, 0.0), (BASE - 0.01, 0.5), (BASE + 0.3, 0.5)], 24, uv=swatch["dark"])
+    visible(nozzle, nozzle_mesh, 1)
+    root.children.append(nozzle)
     collider_mesh = new_mesh(Mu)
     add_lathe(collider_mesh, [BODY[0], BODY[2], (NOSE_START, RADIUS), (TOP - 3, 0.45), BODY[-1]], 12, caps=True)
     root.children.append(convex_collider("BodyCollider", collider_mesh))
@@ -246,7 +250,14 @@ def build_model(Mu, asset_dir):
     tex = Mu.MuMatTex()
     tex.index, tex.scale, tex.offset = 0, (1, 1), (0, 0)
     material.textureProperties["_MainTex"] = tex
-    mu.materials = [material]
+    glow = Mu.MuMaterial()
+    glow.name = "Pluto nozzle glow"
+    glow.shaderName = "KSP/Emissive/Diffuse"
+    glow_tex = Mu.MuMatTex()
+    glow_tex.index, glow_tex.scale, glow_tex.offset = 0, (1, 1), (0, 0)
+    glow.textureProperties["_MainTex"] = glow_tex
+    glow.colorProperties["_EmissiveColor"] = (0.0, 0.0, 0.0, 1.0)
+    mu.materials = [material, glow]
     mu.write(str(asset_dir / "PlutoExterior.mu"))
 
 

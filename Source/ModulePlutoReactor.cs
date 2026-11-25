@@ -22,7 +22,13 @@ namespace ProjectPluto
         [KSPField(guiActive = true, guiName = "Exhaust temperature", guiFormat = "F0", guiUnits = " °C")]
         public float exhaustTempC;
 
+        private const string NozzleGlowTransform = "NozzleGlow";
+        // Seconds for the nozzle to heat up or cool down visibly.
+        private const float GlowTimeConstant = 3f;
+
         private ModuleEnginesFX ramjet;
+        private Material nozzleGlow;
+        private float glowTempC = (float)PlutoConstants.AmbientC;
         private ModulePlutoBoosters boosters;
         private bool breachHandled;
 
@@ -59,6 +65,10 @@ namespace ProjectPluto
                 if (engine.engineID == ramjetEngineID)
                     ramjet = engine;
             }
+            Transform nozzle = part.FindModelTransform(NozzleGlowTransform);
+            Renderer nozzleRenderer = nozzle != null ? nozzle.GetComponent<Renderer>() : null;
+            if (nozzleRenderer != null)
+                nozzleGlow = nozzleRenderer.material;
             if (HighLogic.LoadedSceneIsFlight)
             {
                 part.OnJustAboutToBeDestroyed += OnAboutToBeDestroyed;
@@ -122,6 +132,18 @@ namespace ProjectPluto
             coreTempC = (float)Model.CoreTempC;
             airflow = (float)flow;
             stateText = Model.State.ToString();
+        }
+
+        // The nozzle glows with the exhaust temperature while the ramjet runs, and cools when it stops.
+        public void Update()
+        {
+            if (nozzleGlow == null || !HighLogic.LoadedSceneIsFlight)
+                return;
+            bool running = ramjet != null && ramjet.EngineIgnited && ramjet.finalThrust > 0.1f;
+            float target = running ? exhaustTempC : (float)PlutoConstants.AmbientC;
+            glowTempC += (target - glowTempC) * (1f - Mathf.Exp(-Time.deltaTime / GlowTimeConstant));
+            PlutoGlow.ColorForTemp(glowTempC, out double r, out double g, out double b);
+            nozzleGlow.SetColor("_EmissiveColor", new Color((float)r, (float)g, (float)b, 1f));
         }
 
         // The ramjet's thrust comes from the physics model; KSP's engine only delivers it.
