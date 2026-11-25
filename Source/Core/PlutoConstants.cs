@@ -11,6 +11,9 @@ namespace ProjectPluto
         public const double RestartTempC = 800;
         public const double WarmupSeconds = 20;
         public const double TempTimeConstant = 10;
+        // Historical: Tory II-C full-power airflow about 910 kg/s. Intake area is a gameplay choice.
+        public const double FullAirflowKgS = 910;
+        public const double IntakeAreaM2 = 0.8;
 
         // Radiation: dose rate = DoseK × (power / 600 MW) / r², in Sv/s with r in metres.
         // Calibrated so a Mach 3 pass 150 m overhead at full power gives about 0.28 Sv.

@@ -95,6 +95,7 @@ namespace ProjectPluto
 
             ApplyJettisonedState();
             GameEvents.onVesselWasModified.Fire(vessel);
+            part.FindModuleImplementing<ModulePlutoReactor>()?.OnBoostersGone();
         }
 
         private void ApplyJettisonedState()

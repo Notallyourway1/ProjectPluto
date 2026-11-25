@@ -67,6 +67,14 @@ namespace ProjectPluto
                 Scram();
         }
 
+        // Fraction of full-power cooling air the intake delivers (1 = Tory II-C's 910 kg/s).
+        public static double AirflowFraction(double densityKgM3, double speedMs) =>
+            Clamp01(densityKgM3 * Math.Max(speedMs, 0) * PlutoConstants.IntakeAreaM2 / PlutoConstants.FullAirflowKgS);
+
+        // Throttle demand limited to what the current airflow can cool at design temperature.
+        public static double GovernedDemand(double throttle, double airflowFraction) =>
+            Math.Min(Clamp01(throttle), Clamp01(airflowFraction));
+
         public string Save() => string.Join(";",
             State.ToString(),
             PowerFraction.ToString("R", CultureInfo.InvariantCulture),
