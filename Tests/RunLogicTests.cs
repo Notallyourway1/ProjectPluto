@@ -56,17 +56,17 @@ namespace ProjectPluto.Tests
         {
             var run = Engaged();
             Assert.True(run.Phase == PlutoRunPhase.Dive, "dive");
-            run.Update(0.02, 8850, 150, 9000, false, true, true, 16);
+            run.Update(0.02, 8850, 150, 9000, 1000, false, true, true, 16);
             Assert.True(run.Phase == PlutoRunPhase.Dive, "still diving high up");
             Assert.Equal(-PlutoConstants.MaxDiveDeg, run.TargetFlightPathDeg, 1e-9, "dive limited");
-            run.Update(0.02, 160, 150, 160, false, true, true, 16);
+            run.Update(0.02, 160, 150, 160, 1000, false, true, true, 16);
             Assert.True(run.Phase == PlutoRunPhase.Follow, "follow at run height");
         }
 
         public static void Run_ManualInputAborts()
         {
             var run = Engaged();
-            run.Update(0.02, 5000, 150, 5000, true, true, true, 16);
+            run.Update(0.02, 5000, 150, 5000, 1000, true, true, true, 16);
             Assert.True(run.Phase == PlutoRunPhase.Aborted, "aborted");
             Assert.True(!string.IsNullOrEmpty(run.Message), "message");
         }
@@ -74,21 +74,21 @@ namespace ProjectPluto.Tests
         public static void Run_ScramAborts()
         {
             var run = Engaged();
-            run.Update(0.02, 5000, 150, 5000, false, false, true, 16);
+            run.Update(0.02, 5000, 150, 5000, 1000, false, false, true, 16);
             Assert.True(run.Phase == PlutoRunPhase.Aborted, "aborted");
         }
 
         public static void Run_LeavingAtmosphereAborts()
         {
             var run = Engaged();
-            run.Update(0.02, 5000, 150, 5000, false, true, false, 16);
+            run.Update(0.02, 5000, 150, 5000, 1000, false, true, false, 16);
             Assert.True(run.Phase == PlutoRunPhase.Aborted, "aborted");
         }
 
         public static void Run_DoneWhenWarheadsGone()
         {
             var run = Engaged();
-            run.Update(0.02, 150, 150, 150, false, true, true, 0);
+            run.Update(0.02, 150, 150, 150, 1000, false, true, true, 0);
             Assert.True(run.Phase == PlutoRunPhase.Done, "done");
         }
 
@@ -115,7 +115,7 @@ namespace ProjectPluto.Tests
         public static void Run_ClimbLimited()
         {
             var run = Engaged();
-            run.Update(0.02, 100, 5000, 100, false, true, true, 16);
+            run.Update(0.02, 100, 5000, 100, 500, false, true, true, 16);
             Assert.Equal(PlutoConstants.MaxClimbDeg, run.TargetFlightPathDeg, 1e-9, "climb limited");
         }
 

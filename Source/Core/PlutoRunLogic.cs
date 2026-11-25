@@ -63,8 +63,11 @@ namespace ProjectPluto
 
     public sealed class PlutoRunController
     {
-        // Horizontal distance over which an altitude error is corrected when choosing a flight-path angle.
-        private const double CorrectionDistanceM = 2000;
+        // Vertical acceleration the flight path may ask for when levelling off (1.5 g), and the time
+        // constant for small height errors. Together they cap the sink rate so a Mach 3 dive can pull out.
+        private const double LevelOffAccel = 1.5 * 9.81;
+        private const double SmallErrorSeconds = 2;
+        private const double MaxBankDeg = 60;
 
         private readonly double runHeight;
 
@@ -101,8 +104,8 @@ namespace ProjectPluto
             Message = reason;
         }
 
-        public void Update(double dt, double agl, double desiredAsl, double altitudeAsl, bool manualInput,
-            bool reactorRunning, bool inAtmosphere, int warheadsLeft)
+        public void Update(double dt, double agl, double desiredAsl, double altitudeAsl, double speedMs,
+            bool manualInput, bool reactorRunning, bool inAtmosphere, int warheadsLeft)
         {
             if (!Active)
                 return;
@@ -134,8 +137,40 @@ namespace ProjectPluto
                 Message = "Bombing run: following terrain.";
             }
 
-            double angle = Math.Atan2(desiredAsl - altitudeAsl, CorrectionDistanceM) * 180 / Math.PI;
-            TargetFlightPathDeg = Math.Max(-PlutoConstants.MaxDiveDeg, Math.Min(PlutoConstants.MaxClimbDeg, angle));
+            TargetFlightPathDeg = FlightPathFor(desiredAsl - altitudeAsl, speedMs);
+        }
+
+        // Flight-path angle for a height error: the vertical speed is limited so that it can be taken
+        // out at LevelOffAccel by the time the error reaches zero, and eases off for small errors.
+        public static double FlightPathFor(double heightErrorM, double speedMs)
+        {
+            double size = Math.Abs(heightErrorM);
+            double vertical = Math.Sign(heightErrorM)
+                * Math.Min(Math.Sqrt(2 * LevelOffAccel * size), size / SmallErrorSeconds);
+            double ratio = Math.Max(-1, Math.Min(1, vertical / Math.Max(speedMs, 1)));
+            double angle = Math.Asin(ratio) * 180 / Math.PI;
+            return Math.Max(-PlutoConstants.MaxDiveDeg, Math.Min(PlutoConstants.MaxClimbDeg, angle));
+        }
+
+        // A warhead has been released on the target: the run is over.
+        public void NotifyReleasedOnTarget()
+        {
+            if (!Active)
+                return;
+            Phase = PlutoRunPhase.Done;
+            Message = "Warhead released on target: control returned.";
+        }
+
+        // Bank wanted for a heading error (degrees, as PlutoVec.SignedAngle(track, toTarget, up) gives it).
+        // A bank measured about the forward axis has the opposite sign convention, hence the minus.
+        public static double WantedBankDeg(double headingErrorDeg) =>
+            -Math.Max(-MaxBankDeg, Math.Min(MaxBankDeg, headingErrorDeg * 2));
+
+        // Pitch authority while banked: full when level, none at 90° or more (pulling would not lift the nose).
+        public static double PitchScaleForBank(double bankDeg)
+        {
+            double wrapped = ((bankDeg + 180) % 360 + 360) % 360 - 180;
+            return Math.Max(0, Math.Cos(wrapped * Math.PI / 180));
         }
 
         public static double? HeadingToTarget(bool hasTarget, double bearing) => hasTarget ? bearing : (double?)null;

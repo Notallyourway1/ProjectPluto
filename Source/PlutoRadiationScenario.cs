@@ -20,6 +20,8 @@ namespace ProjectPluto
 
         private readonly Dictionary<string, double> doses = new Dictionary<string, double>();
         private readonly List<Breach> breaches = new List<Breach>();
+        // Reused every physics frame so dosing allocates nothing.
+        private readonly List<KeyValuePair<Vessel, ProtoCrewMember>> dying = new List<KeyValuePair<Vessel, ProtoCrewMember>>();
 
         public override void OnAwake()
         {
@@ -52,7 +54,7 @@ namespace ProjectPluto
         {
             if (powerMW <= 0 || dt <= 0)
                 return;
-            var dying = new List<KeyValuePair<Vessel, ProtoCrewMember>>();
+            dying.Clear();
             foreach (Vessel v in FlightGlobals.VesselsLoaded)
             {
                 if (v == null || v == source || v.mainBody != body)
@@ -70,8 +72,9 @@ namespace ProjectPluto
                     }
                 }
             }
-            foreach (var entry in dying)
-                Kill(entry.Key, entry.Value);
+            for (int i = 0; i < dying.Count; i++)
+                Kill(dying[i].Key, dying[i].Value);
+            dying.Clear();
         }
 
         // Returns true when this dose takes the kerbal past the lethal threshold.
@@ -128,10 +131,15 @@ namespace ProjectPluto
             if (!HighLogic.LoadedSceneIsFlight || breaches.Count == 0)
                 return;
             double now = Planetarium.GetUniversalTime();
-            breaches.RemoveAll(b => b.ExpiresUT <= now);
             double dt = TimeWarp.fixedDeltaTime;
-            foreach (Breach b in breaches.ToArray())
+            for (int i = breaches.Count - 1; i >= 0; i--)
             {
+                Breach b = breaches[i];
+                if (b.ExpiresUT <= now)
+                {
+                    breaches.RemoveAt(i);
+                    continue;
+                }
                 if (b.BodyIndex < 0 || b.BodyIndex >= FlightGlobals.Bodies.Count)
                     continue;
                 CelestialBody body = FlightGlobals.Bodies[b.BodyIndex];

@@ -75,6 +75,14 @@ namespace ProjectPluto
         public static double GovernedDemand(double throttle, double airflowFraction) =>
             Math.Min(Clamp01(throttle), Clamp01(airflowFraction));
 
+        // Engine thrust limit (percent) so that thrust = reactor power, given KSP multiplies by throttle too.
+        public static double ThrustLimitPercent(double powerFraction, double throttle)
+        {
+            if (powerFraction <= 0)
+                return 0;
+            return Math.Min(100, 100 * powerFraction / Math.Max(throttle, 0.01));
+        }
+
         public string Save() => string.Join(";",
             State.ToString(),
             PowerFraction.ToString("R", CultureInfo.InvariantCulture),

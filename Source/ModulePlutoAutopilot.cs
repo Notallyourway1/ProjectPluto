@@ -10,8 +10,10 @@ namespace ProjectPluto
     {
         private const float ManualThreshold = 0.05f;
         private const float LevelOffSeconds = 2f;
-        private const float MaxBankDeg = 60f;
         private const int PredictEveryFrames = 5;
+        private const int LookaheadEveryFrames = 5;
+        // Only predict a toss when the target is this close ahead along the track.
+        private const double PredictRangeM = 20000;
 
         [KSPField(isPersistant = true, guiActive = true, guiName = "Run height", guiUnits = " m"),
             UI_FloatRange(minValue = 100f, maxValue = 500f, stepIncrement = 10f, scene = UI_Scene.Flight)]
@@ -28,16 +30,22 @@ namespace ProjectPluto
         [KSPField] public float pitchSign = 1f;
         [KSPField] public float rollSign = 1f;
 
+        // Saved so a reload in the middle of a run can undo what the run changed.
+        [KSPField(isPersistant = true)] public bool runActive;
+        [KSPField(isPersistant = true)] public bool runOwnsAutoRelease;
+        [KSPField(isPersistant = true)] public bool sasWasOn;
+
         private PlutoRunController run;
         private readonly PlutoTossTrigger toss = new PlutoTossTrigger();
         private PlutoPid pitchPid, rollPid, throttlePid;
         private ModulePlutoWarheads warheads;
         private ModulePlutoReactor reactor;
         private bool attached;
-        private bool sasWasOn;
         private float levelOffLeft;
         private int frame;
-        private bool autoReleaseStarted;
+        private double[] samples;
+        private double desiredAsl;
+        private double groundAsl;
 
         public override string GetInfo() =>
             "Bombing-run autopilot. Manual control until you choose Commence bombing run; then it dives to " +
@@ -49,6 +57,16 @@ namespace ProjectPluto
             base.OnStart(state);
             warheads = part.FindModuleImplementing<ModulePlutoWarheads>();
             reactor = part.FindModuleImplementing<ModulePlutoReactor>();
+            if (HighLogic.LoadedSceneIsFlight && runActive)
+            {
+                // A run cannot survive a reload: undo what it switched on and hand control back.
+                if (runOwnsAutoRelease && warheads != null)
+                    warheads.autoRelease = false;
+                if (sasWasOn && vessel != null)
+                    vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
+                runActive = runOwnsAutoRelease = false;
+                Post("Bombing run ended by reload: manual control.");
+            }
             RefreshControls();
         }
 
@@ -76,12 +94,15 @@ namespace ProjectPluto
             rollPid = new PlutoPid(0.03, 0.005, 0.01, -1, 1);
             throttlePid = new PlutoPid(2.0, 0.4, 0, 0, 1);
             toss.Reset();
-            autoReleaseStarted = false;
+            runOwnsAutoRelease = false;
             levelOffLeft = 0;
+            frame = 0;
+            samples = new double[(int)(PlutoConstants.LookaheadRangeM / PlutoConstants.LookaheadStepM) + 1];
             sasWasOn = vessel.ActionGroups[KSPActionGroup.SAS];
             vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
             vessel.OnFlyByWire += Fly;
             attached = true;
+            runActive = true;
             Post(run.Message);
             RefreshControls();
         }
@@ -132,16 +153,20 @@ namespace ProjectPluto
                 return;
             }
 
-            var samples = new double[(int)(PlutoConstants.LookaheadRangeM / PlutoConstants.LookaheadStepM) + 1];
-            for (int i = 0; i < samples.Length; i++)
-                samples[i] = TerrainAsl(body, position + track * (i * PlutoConstants.LookaheadStepM));
-            double desired = PlutoTerrainLookahead.DesiredAltitudeAsl(samples, runHeight,
-                PlutoConstants.LookaheadStepM, PlutoConstants.LookaheadClimbDeg);
-            double agl = vessel.altitude - samples[0];
+            // Terrain look-ahead about ten times a second (the missile covers ~100 m between refreshes).
+            if (frame++ % LookaheadEveryFrames == 0)
+            {
+                for (int i = 0; i < samples.Length; i++)
+                    samples[i] = TerrainAsl(body, position + track * (i * PlutoConstants.LookaheadStepM));
+                desiredAsl = PlutoTerrainLookahead.DesiredAltitudeAsl(samples, runHeight,
+                    PlutoConstants.LookaheadStepM, PlutoConstants.LookaheadClimbDeg);
+                groundAsl = samples[0];
+            }
+            double agl = vessel.altitude - groundAsl;
             bool inAtmosphere = vessel.altitude < body.atmosphereDepth;
 
-            run.Update(dt, agl, desired, vessel.altitude, manual, reactor != null && reactor.IsRunning,
-                inAtmosphere, warheads != null ? warheads.warheadsLeft : 0);
+            run.Update(dt, agl, desiredAsl, vessel.altitude, vessel.srfSpeed, manual,
+                reactor != null && reactor.IsRunning, inAtmosphere, warheads != null ? warheads.warheadsLeft : 0);
             if (!run.Active)
             {
                 Finish();
@@ -155,7 +180,12 @@ namespace ProjectPluto
             s.mainThrottle = (float)throttlePid.Update(runMach - vessel.mach, dt);
 
             if (run.Phase == PlutoRunPhase.Follow && warheads != null)
-                Release(body, target, track);
+                Release(body, target, track, position);
+            if (!run.Active)
+            {
+                Finish();
+                return;
+            }
             status = run.Phase == PlutoRunPhase.Dive ? "Diving" : "Following terrain";
         }
 
@@ -169,37 +199,38 @@ namespace ProjectPluto
             if (vessel.geeForce > PlutoConstants.MaxG)
                 pitch *= PlutoConstants.MaxG / vessel.geeForce;
 
-            double wantedBank = headingErrorDeg.HasValue
-                ? Math.Max(-MaxBankDeg, Math.Min(MaxBankDeg, headingErrorDeg.Value * 2))
-                : 0;
+            double wantedBank = headingErrorDeg.HasValue ? PlutoRunController.WantedBankDeg(headingErrorDeg.Value) : 0;
             // The vessel's "top" is opposite its reference transform's forward (KSP convention).
             Vector3d forward = vessel.ReferenceTransform.up;
             Vector3d top = -vessel.ReferenceTransform.forward;
             Vector3d levelTop = Vector3d.Exclude(forward, up).normalized;
             double bank = SignedAngle(levelTop, Vector3d.Exclude(forward, top).normalized, forward);
+            // No pull while steeply banked or inverted: roll upright first.
+            pitch *= PlutoRunController.PitchScaleForBank(bank);
 
             s.pitch = pitchSign * (float)pitch;
             s.roll = rollSign * (float)rollPid.Update(wantedBank - bank, dt);
             s.yaw = 0;
         }
 
-        private void Release(CelestialBody body, RunTarget target, Vector3d track)
+        private void Release(CelestialBody body, RunTarget target, Vector3d track, Vector3d position)
         {
             if (warheads.releaseOnTarget && target.Has)
             {
-                if (++frame % PredictEveryFrames != 0)
+                double ahead = Vector3d.Dot(target.Position - position, track);
+                if (frame % PredictEveryFrames != 0 || ahead > PredictRangeM)
                     return;
                 PlutoVec impact = warheads.PredictImpactBodyRelative();
                 PlutoVec targetLocal = PlutoFallingObject.ToLocalPoint(body, target.Position);
                 PlutoVec trackLocal = PlutoFallingObject.ToLocalVector(body, track);
-                if (toss.ShouldRelease(impact, targetLocal, trackLocal))
-                    warheads.ReleaseWarhead();
+                if (toss.ShouldRelease(impact, targetLocal, trackLocal) && warheads.ReleaseWarhead())
+                    run.NotifyReleasedOnTarget();
                 return;
             }
-            if (!autoReleaseStarted)
+            if (!runOwnsAutoRelease && !warheads.autoRelease)
             {
                 // No on-target release: drop a line of warheads on the auto-release timer.
-                autoReleaseStarted = true;
+                runOwnsAutoRelease = true;
                 warheads.autoRelease = true;
             }
         }
@@ -242,8 +273,9 @@ namespace ProjectPluto
         {
             Post(run.Message);
             status = run.Phase == PlutoRunPhase.Done ? "Complete" : "Aborted";
-            if (warheads != null && autoReleaseStarted)
+            if (warheads != null && runOwnsAutoRelease)
                 warheads.autoRelease = false;
+            runOwnsAutoRelease = false;
             if (run.Phase == PlutoRunPhase.Done)
                 levelOffLeft = LevelOffSeconds;
             else
@@ -256,6 +288,7 @@ namespace ProjectPluto
             if (!attached)
                 return;
             attached = false;
+            runActive = false;
             levelOffLeft = 0;
             if (vessel != null)
             {

@@ -19,26 +19,38 @@ namespace ProjectPluto
         public static PlutoVec operator -(PlutoVec a, PlutoVec b) => new PlutoVec(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
         public static PlutoVec operator *(PlutoVec a, double s) => new PlutoVec(a.X * s, a.Y * s, a.Z * s);
         public static double Dot(PlutoVec a, PlutoVec b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+
+        public static PlutoVec Cross(PlutoVec a, PlutoVec b) =>
+            new PlutoVec(a.Y * b.Z - a.Z * b.Y, a.Z * b.X - a.X * b.Z, a.X * b.Y - a.Y * b.X);
+
+        // Angle from a to b in degrees, signed by the direction of a × b along axis.
+        public static double SignedAngle(PlutoVec a, PlutoVec b, PlutoVec axis)
+        {
+            double cos = Dot(a, b) / Math.Max(a.Length * b.Length, 1e-12);
+            double angle = Math.Acos(Math.Max(-1, Math.Min(1, cos))) * 180 / Math.PI;
+            return Dot(axis, Cross(a, b)) < 0 ? -angle : angle;
+        }
     }
 
     public static class PlutoBallistics
     {
-        // Semi-implicit Euler with quadratic drag: a = g − dragPerM·|v|·v.
+        // Constant-acceleration step with quadratic drag: a = g − dragPerM·|v|·v. Exact for gravity alone,
+        // so prediction can use coarse steps (and few terrain lookups) without losing accuracy.
         public static void Step(ref PlutoVec pos, ref PlutoVec vel, PlutoVec gravity, double dragPerM, double dt)
         {
             PlutoVec accel = gravity - vel * (dragPerM * vel.Length);
+            pos = pos + vel * dt + accel * (0.5 * dt * dt);
             vel = vel + accel * dt;
-            pos = pos + vel * dt;
         }
 
         // Where a warhead released with this state would hit the ground (or where it is after maxT).
         public static PlutoVec PredictImpact(PlutoVec pos, PlutoVec vel, PlutoVec gravity, double dragPerM,
             Func<PlutoVec, double> heightAboveGround, double dt = 0.05, double maxT = 120)
         {
+            double hBefore = heightAboveGround(pos);
             for (double t = 0; t < maxT; t += dt)
             {
                 PlutoVec before = pos;
-                double hBefore = heightAboveGround(pos);
                 Step(ref pos, ref vel, gravity, dragPerM, dt);
                 double hAfter = heightAboveGround(pos);
                 if (hAfter <= 0)
@@ -47,6 +59,7 @@ namespace ProjectPluto
                     double f = hBefore > hAfter ? hBefore / (hBefore - hAfter) : 1;
                     return before + (pos - before) * Math.Max(0, Math.Min(1, f));
                 }
+                hBefore = hAfter;
             }
             return pos;
         }

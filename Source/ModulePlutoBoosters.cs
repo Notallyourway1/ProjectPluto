@@ -33,6 +33,17 @@ namespace ProjectPluto
             FindParts();
             if (boostersJettisoned)
                 ApplyJettisonedState();
+            else
+                SetDragCube(BoostedCube);
+        }
+
+        private void SetDragCube(string active)
+        {
+            if (part.DragCubes == null || part.DragCubes.Cubes.Count < 2)
+                return;
+            part.DragCubes.SetCubeWeight(BoostedCube, active == BoostedCube ? 1f : 0f);
+            part.DragCubes.SetCubeWeight(CleanCube, active == CleanCube ? 1f : 0f);
+            part.DragCubes.ForceUpdate(true, true);
         }
 
         private void FindParts()
@@ -109,12 +120,8 @@ namespace ProjectPluto
                 boostEngine.stagingEnabled = false;
             }
             Events[nameof(JettisonBoosters)].active = false;
-            if (part.DragCubes != null && part.DragCubes.Cubes.Count > 1)
-            {
-                part.DragCubes.SetCubeWeight(BoostedCube, 0f);
-                part.DragCubes.SetCubeWeight(CleanCube, 1f);
-                part.DragCubes.ForceUpdate(true, true);
-            }
+            SetDragCube(CleanCube);
+            part.UpdateMass();
         }
 
         private void SpawnDebris()
@@ -139,7 +146,7 @@ namespace ProjectPluto
         public float GetModuleMass(float defaultMass, ModifierStagingSituation sit) =>
             boostersJettisoned ? -boosterDryMass : 0f;
 
-        public ModifierChangeWhen GetModuleMassChangeWhen() => ModifierChangeWhen.FIXED;
+        public ModifierChangeWhen GetModuleMassChangeWhen() => ModifierChangeWhen.CONSTANTLY;
 
         // Two drag cubes: with and without the boosters.
         public string[] GetDragCubeNames() => new[] { BoostedCube, CleanCube };

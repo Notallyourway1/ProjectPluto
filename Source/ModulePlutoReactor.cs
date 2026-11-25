@@ -117,7 +117,8 @@ namespace ProjectPluto
         private void ApplyThrustLimit()
         {
             if (ramjet != null)
-                ramjet.thrustPercentage = Mathf.Clamp((float)(Model.PowerFraction * 100), 0f, 100f);
+                ramjet.thrustPercentage = (float)PlutoReactorModel.ThrustLimitPercent(Model.PowerFraction,
+                    vessel != null ? vessel.ctrlState.mainThrottle : 1);
         }
 
         [KSPEvent(guiActive = true, guiName = "SCRAM reactor")]

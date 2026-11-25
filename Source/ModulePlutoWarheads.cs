@@ -94,6 +94,7 @@ namespace ProjectPluto
             };
 
             warheadsLeft--;
+            part.UpdateMass();
             GameEvents.onVesselWasModified.Fire(vessel);
             RefreshControls();
             ScreenMessages.PostScreenMessage(
@@ -112,7 +113,7 @@ namespace ProjectPluto
             PlutoVec localVelocity = PlutoFallingObject.ToLocalVector(body, velocity);
             PlutoVec gravity = PlutoFallingObject.Gravity(body, position);
             return PlutoBallistics.PredictImpact(position, localVelocity, gravity, DragPerM(vessel.atmDensity),
-                p => PlutoFallingObject.HeightAboveGround(body, p), 0.25, 60);
+                p => PlutoFallingObject.HeightAboveGround(body, p), 0.5, 60);
         }
 
         private static double DragPerM(double density) => SeaLevelDragPerM * Math.Max(0, density) / SeaLevelDensity;
@@ -143,6 +144,6 @@ namespace ProjectPluto
         public float GetModuleMass(float defaultMass, ModifierStagingSituation sit) =>
             -(float)((PlutoConstants.WarheadCount - warheadsLeft) * PlutoConstants.WarheadMassT);
 
-        public ModifierChangeWhen GetModuleMassChangeWhen() => ModifierChangeWhen.FIXED;
+        public ModifierChangeWhen GetModuleMassChangeWhen() => ModifierChangeWhen.CONSTANTLY;
     }
 }
