@@ -64,14 +64,24 @@ namespace ProjectPluto
                     if (p.protoModuleCrew == null || p.protoModuleCrew.Count == 0)
                         continue;
                     double distance = (p.transform.position - worldPosition).magnitude;
-                    double sv = PlutoRadiation.DoseRate(powerMW, distance) * dt;
-                    foreach (ProtoCrewMember kerbal in p.protoModuleCrew)
-                    {
-                        if (AddDose(kerbal, sv))
-                            dying.Add(new KeyValuePair<Vessel, ProtoCrewMember>(v, kerbal));
-                    }
+                    DosePart(v, p, PlutoRadiation.DoseRate(powerMW, distance) * dt);
                 }
             }
+            ApplyDeaths();
+        }
+
+        // Adds a dose to everyone aboard a part; deaths wait for ApplyDeaths so crew lists stay valid.
+        public void DosePart(Vessel v, Part p, double sv)
+        {
+            foreach (ProtoCrewMember kerbal in p.protoModuleCrew)
+            {
+                if (AddDose(kerbal, sv))
+                    dying.Add(new KeyValuePair<Vessel, ProtoCrewMember>(v, kerbal));
+            }
+        }
+
+        public void ApplyDeaths()
+        {
             for (int i = 0; i < dying.Count; i++)
                 Kill(dying[i].Key, dying[i].Value);
             dying.Clear();

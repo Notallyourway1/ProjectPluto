@@ -25,6 +25,12 @@ namespace ProjectPluto
         public const double DoseWarn2 = 1;
         public const double DoseLethal = 6;
         public const double BreachPowerThreshold = 0.1;
+        // Fission fragments in the exhaust (gameplay estimate): each trail point is a source of this
+        // fraction of reactor power, decaying with this time constant and removed after the life.
+        public const double TrailFraction = 0.005;
+        public const double TrailIntervalSeconds = 1;
+        public const double TrailDecaySeconds = 60;
+        public const double TrailLifeSeconds = 300;
         public const double BreachStrength = 0.1;
         public const double BreachSeconds = 600;
 

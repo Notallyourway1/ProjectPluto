@@ -28,6 +28,7 @@ namespace ProjectPluto
 
         private ModuleEnginesFX ramjet;
         private Material nozzleGlow;
+        private PlutoExhaustTrail trail;
         private float glowTempC = (float)PlutoConstants.AmbientC;
         private ModulePlutoBoosters boosters;
         private bool breachHandled;
@@ -79,6 +80,7 @@ namespace ProjectPluto
 
         public void OnDestroy()
         {
+            trail?.Release();
             if (part != null)
                 part.OnJustAboutToBeDestroyed -= OnAboutToBeDestroyed;
         }
@@ -120,6 +122,7 @@ namespace ProjectPluto
             air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
                 vessel.atmosphericTemperature);
             ApplyThrust(air.ThrustN);
+            RecordTrail(air.ThrustN);
             double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);
             if (heatKW > 0 && Model.State != PlutoReactorState.Breached)
                 part.AddThermalFlux(heatKW);
@@ -147,6 +150,19 @@ namespace ProjectPluto
             glowTempC += (target - glowTempC) * (1f - Mathf.Exp(-Time.deltaTime / GlowTimeConstant));
             PlutoGlow.ColorForTemp(glowTempC, out double r, out double g, out double b);
             nozzleGlow.SetColor("_EmissiveColor", new Color((float)r, (float)g, (float)b, 1f));
+        }
+
+        // While the ramjet is pushing, fission fragments in the exhaust leave a radioactive trail.
+        private void RecordTrail(double thrustN)
+        {
+            if (!Model.IsPowered || thrustN <= 0 || ramjet == null || ramjet.thrustTransforms.Count == 0)
+                return;
+            if (trail == null || trail.Body != vessel.mainBody)
+            {
+                trail?.Release();
+                trail = PlutoExhaustTrail.Create(vessel.mainBody);
+            }
+            trail.Record(ramjet.thrustTransforms[0].position, Model.PowerMW, Planetarium.GetUniversalTime());
         }
 
         // The ramjet's thrust comes from the physics model; KSP's engine only delivers it.
