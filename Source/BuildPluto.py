@@ -1,5 +1,7 @@
 """Build the Project Pluto (SLAM) model and texture with Pillow and taniwha's mu.py.
 
+Writes PlutoExterior.mu, PlutoLaunchPad.mu and PlutoSkin.png.
+
 Usage: python3 -I Source/BuildPluto.py MU_DIR ASSET_DIR FONT.ttf
   MU_DIR     folder holding io_object_mu's mu.py (tools/io_object_mu)
   ASSET_DIR  output folder (GameData/ProjectPluto/Parts/Assets)
@@ -261,6 +263,88 @@ def build_model(Mu, asset_dir):
     mu.write(str(asset_dir / "PlutoExterior.mu"))
 
 
+def build_launch_pad(Mu, asset_dir):
+    """The ground launcher. Blender +Z here is the pad's Unity +Y, pointing up into the missile's belly.
+
+    Rail: the cradle under the belly; the plugin turns it to lie along the missile.
+    Stand: pivot under the cradle; the plugin keeps it upright. Its Tower (built 1 m long) is stretched
+    to reach the ground and its Foot is moved to the tower's bottom.
+    """
+    swatch = {k: (u, SWATCH_V) for k, u in SWATCHES.items()}
+
+    def node(name, position=(0, 0, 0)):
+        obj = Mu.MuObject(name)
+        obj.transform = Mu.MuTransform()
+        obj.transform.name = name
+        obj.transform.localPosition = position
+        obj.transform.localRotation = (1, 0, 0, 0)
+        obj.transform.localScale = (1, 1, 1)
+        obj.tag_and_layer = Mu.MuTagLayer()
+        obj.tag_and_layer.tag, obj.tag_and_layer.layer = "Untagged", 0
+        return obj
+
+    def visible(obj, mesh):
+        obj.shared_mesh = mesh
+        obj.renderer = Mu.MuRenderer()
+        obj.renderer.materials = [0]
+
+    mu = Mu.Mu("PlutoLaunchPad")
+    root = node("PlutoLaunchPad")
+    mu.obj = root
+
+    rail = node("Rail")
+    mesh = new_mesh(Mu)
+    add_box(mesh, (-0.18, -7.0, -0.6), (0.18, 7.0, -0.28), swatch["steel"])
+    for x0, x1 in ((-0.55, -0.41), (0.41, 0.55)):
+        add_box(mesh, (x0, -7.0, -0.3), (x1, 7.0, 0.12), swatch["dark"])
+    for y in range(-6, 7, 2):
+        add_box(mesh, (-0.55, y - 0.1, -0.45), (0.55, y + 0.1, -0.28), swatch["steel"])
+    visible(rail, mesh)
+    root.children.append(rail)
+
+    stand = node("Stand", (0, 0, -0.6))
+    hinge = new_mesh(Mu)
+    add_box(hinge, (-0.5, -0.5, -0.5), (0.5, 0.5, 0.0), swatch["dark"])
+    visible(stand, hinge)
+
+    tower = node("Tower")
+    mesh = new_mesh(Mu)
+    for x in (-0.35, 0.35):
+        for y in (-0.35, 0.35):
+            add_box(mesh, (x - 0.06, y - 0.06, -1.0), (x + 0.06, y + 0.06, 0.0), swatch["steel"])
+    add_box(mesh, (-0.13, -0.13, -1.0), (0.13, 0.13, 0.0), swatch["dark"])
+    visible(tower, mesh)
+    stand.children.append(tower)
+
+    foot = node("Foot", (0, 0, -4.0))
+    mesh = new_mesh(Mu)
+    add_box(mesh, (-2.2, -3.0, -0.4), (2.2, 3.0, 0.0), swatch["white"])
+    add_box(mesh, (-0.6, -0.6, 0.0), (0.6, 0.6, 0.5), swatch["dark"])
+    visible(foot, mesh)
+    collider = node("FootCollider")
+    collider.collider = Mu.MuColliderMesh(True)
+    collider.collider.isTrigger = 0
+    collider.collider.convex = 1
+    col_mesh = new_mesh(Mu)
+    add_box(col_mesh, (-2.2, -3.0, -0.4), (2.2, 3.0, 0.0), swatch["white"])
+    collider.collider.mesh = col_mesh
+    foot.children.append(collider)
+    stand.children.append(foot)
+    root.children.append(stand)
+
+    texture = Mu.MuTexture()
+    texture.name, texture.type = "PlutoSkin.png", 0
+    mu.textures = [texture]
+    material = Mu.MuMaterial()
+    material.name = "Pluto launcher"
+    material.shaderName = "KSP/Diffuse"
+    tex = Mu.MuMatTex()
+    tex.index, tex.scale, tex.offset = 0, (1, 1), (0, 0)
+    material.textureProperties["_MainTex"] = tex
+    mu.materials = [material]
+    mu.write(str(asset_dir / "PlutoLaunchPad.mu"))
+
+
 def build_texture(path, font_path):
     from PIL import Image, ImageDraw, ImageFont
 
@@ -319,6 +403,7 @@ def main():
 
     args.assets.mkdir(parents=True, exist_ok=True)
     build_model(Mu, args.assets)
+    build_launch_pad(Mu, args.assets)
     build_texture(args.assets / "PlutoSkin.png", args.font)
 
 

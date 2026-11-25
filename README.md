@@ -1,8 +1,9 @@
-# Project Pluto SLAM v0.1.0
+# Project Pluto SLAM v0.2.0
 
-A standalone part for Kerbal Space Program 1.12.x: the **SLAM** (Supersonic Low Altitude Missile) of
-Project Pluto, a nuclear ramjet cruise missile, as one part with its boosters, reactor, warheads and a
-bombing-run autopilot built in. No other mods or DLC are needed.
+A standalone mod for Kerbal Space Program 1.12.x: the **SLAM** (Supersonic Low Altitude Missile) of
+Project Pluto, a nuclear ramjet cruise missile, as one part with its boosters, reactor, warheads, probe
+core and a bombing-run autopilot built in, plus a ground launcher to fire it from. No other mods or DLC
+are needed.
 
 > **Status:** compiled and unit-tested, **not yet tested in game**. Expect tuning changes after the
 > first flights.
@@ -65,6 +66,8 @@ These are gameplay choices, not history:
   missile will still be inside the blast. Each burst is a 1 Mt effect scaled for Kerbin: about 280 m fireball radius, 3 km cloud,
   500 m damage radius. A nearby blast does not set off another missile's warheads.
 - **The bombing-run autopilot.**
+- **The launcher:** a cradle and tower that tilts the missile to a set elevation and holds it until
+  launch. The real SLAM's launch arrangement was never settled.
 - The model's details (canard and fin sizes, booster shape, markings).
 
 ## Install on macOS
@@ -72,13 +75,22 @@ These are gameplay choices, not history:
 1. Quit KSP and unzip the archive.
 2. Copy `GameData/ProjectPluto` into your KSP `GameData` folder. The DLL must end up at
    `GameData/ProjectPluto/Plugins/ProjectPluto.dll`.
-3. Start KSP. The part is **Project Pluto SLAM** under **Engines** (search "pluto"). Career and Science
-   modes unlock it with **Nuclear Propulsion**.
+3. Start KSP. Two parts appear (search "pluto"); Career and Science modes unlock both with
+   **Nuclear Propulsion**:
+   - **Project Pluto SLAM** under **Command**: the missile. It is its own probe core with a built-in
+     antenna, reaction wheels and SAS, so it needs no other part.
+   - **Project Pluto Launcher** under **Structural**: the ground launcher.
 
 ## Fly a mission
 
-1. **Launch.** Put the missile on a ramp or launch clamps, pointed 30–45° up. Stage once: the boosters
-   fire and the reactor starts warming up.
+1. **Build and launch.** In the VAB, start a new craft with the **Project Pluto SLAM**. Attach the
+   **Project Pluto Launcher** under its belly (the side with the air scoop). The craft tilts to the
+   launcher's **Launch elevation** (default 45°, 15–90°; changing it re-tilts the craft), and its
+   tower reaches below the missile's tail. The missile flies toward the side the belly faced before
+   tilting, so turn the missile before attaching the launcher to choose the direction.
+   Check the staging list: the launcher and the boosters should fire in the same stage. Launch, and
+   the tower stands on the ground and holds the missile still. Stage once: the boosters fire, the
+   missile slides off the cradle, the launcher stays behind, and the reactor starts warming up.
 2. **Booster burnout.** The boosters drop off by themselves, the reactor is at full power and the
    ramjet takes over. The right-click menu shows reactor state, power, core temperature and cooling
    airflow. You can **SCRAM** and **Restart** the reactor (restart needs the core below 800 °C).
