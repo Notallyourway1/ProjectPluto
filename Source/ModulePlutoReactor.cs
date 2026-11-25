@@ -19,6 +19,8 @@ namespace ProjectPluto
         public float coreTempC;
         [KSPField(guiActive = true, guiName = "Cooling airflow", guiFormat = "P0")]
         public float airflow;
+        [KSPField(guiActive = true, guiName = "Exhaust temperature", guiFormat = "F0", guiUnits = " °C")]
+        public float exhaustTempC;
 
         private ModuleEnginesFX ramjet;
         private ModulePlutoBoosters boosters;
@@ -30,7 +32,9 @@ namespace ProjectPluto
         public override string GetInfo() =>
             $"Unshielded nuclear reactor, {PlutoConstants.ReactorMaxMW:0} MW (Tory design power).\n" +
             $"Warms up in {PlutoConstants.WarmupSeconds:0} s from booster ignition.\n" +
-            "Needs rammed air for cooling; SCRAMs if it overheats.\n" +
+            "Heats rammed air for thrust (ideal ramjet: no fuel, no thrust at rest,\n" +
+            "stops near Mach 4.8 where ram heating reaches core temperature).\n" +
+            "Needs that air for cooling; SCRAMs if it overheats.\n" +
             "Doses kerbals nearby with radiation.";
 
         public override void OnLoad(ConfigNode node)
@@ -58,7 +62,7 @@ namespace ProjectPluto
             if (HighLogic.LoadedSceneIsFlight)
             {
                 part.OnJustAboutToBeDestroyed += OnAboutToBeDestroyed;
-                ApplyThrustLimit();
+                ApplyThrust(0);
                 RefreshControls();
             }
         }
@@ -87,7 +91,10 @@ namespace ProjectPluto
                 Model.Start();
 
             double dt = TimeWarp.fixedDeltaTime;
-            double flow = PlutoReactorModel.AirflowFraction(vessel.atmDensity, vessel.srfSpeed);
+            // How much heat the rammed air can carry away decides cooling; the same physics gives thrust.
+            PlutoRamjet.Result air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
+                vessel.atmosphericTemperature);
+            double flow = air.CoolingFraction;
             double demand = Model.State == PlutoReactorState.Warming
                 ? 1
                 : PlutoReactorModel.GovernedDemand(vessel.ctrlState.mainThrottle, flow);
@@ -100,7 +107,10 @@ namespace ProjectPluto
             if (before != Model.State)
                 RefreshControls();
 
-            ApplyThrustLimit();
+            air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
+                vessel.atmosphericTemperature);
+            ApplyThrust(air.ThrustN);
+            exhaustTempC = (float)(air.ExitTempK - 273.15);
             if (Model.IsPowered)
             {
                 part.RequestResource("ElectricCharge", -electricRate * dt);
@@ -114,11 +124,17 @@ namespace ProjectPluto
             stateText = Model.State.ToString();
         }
 
-        private void ApplyThrustLimit()
+        // The ramjet's thrust comes from the physics model; KSP's engine only delivers it.
+        private void ApplyThrust(double thrustN)
         {
-            if (ramjet != null)
-                ramjet.thrustPercentage = (float)PlutoReactorModel.ThrustLimitPercent(Model.PowerFraction,
-                    vessel != null ? vessel.ctrlState.mainThrottle : 1);
+            if (ramjet == null)
+                return;
+            double throttle = vessel != null ? vessel.ctrlState.mainThrottle : 1;
+            float rating = (float)PlutoRamjet.EngineRatingKN(thrustN, throttle);
+            ramjet.thrustPercentage = 100f;
+            ramjet.maxThrust = rating;
+            float isp = ramjet.atmosphereCurve.Evaluate(0f);
+            ramjet.maxFuelFlow = isp > 0 ? rating / (isp * ramjet.g) : 0f;
         }
 
         [KSPEvent(guiActive = true, guiName = "SCRAM reactor")]

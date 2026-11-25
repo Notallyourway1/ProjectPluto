@@ -67,21 +67,9 @@ namespace ProjectPluto
                 Scram();
         }
 
-        // Fraction of full-power cooling air the intake delivers (1 = Tory II-C's 910 kg/s).
-        public static double AirflowFraction(double densityKgM3, double speedMs) =>
-            Clamp01(densityKgM3 * Math.Max(speedMs, 0) * PlutoConstants.IntakeAreaM2 / PlutoConstants.FullAirflowKgS);
-
         // Throttle demand limited to what the current airflow can cool at design temperature.
         public static double GovernedDemand(double throttle, double airflowFraction) =>
             Math.Min(Clamp01(throttle), Clamp01(airflowFraction));
-
-        // Engine thrust limit (percent) so that thrust = reactor power, given KSP multiplies by throttle too.
-        public static double ThrustLimitPercent(double powerFraction, double throttle)
-        {
-            if (powerFraction <= 0)
-                return 0;
-            return Math.Min(100, 100 * powerFraction / Math.Max(throttle, 0.01));
-        }
 
         public string Save() => string.Join(";",
             State.ToString(),

@@ -75,13 +75,14 @@ namespace ProjectPluto.Tests
             Assert.Equal(0.5, PlutoRunController.PitchScaleForBank(60), 1e-9, "60 degrees");
         }
 
-        // Re-graded: thrust should follow reactor power, not throttle × power.
-        public static void Thrust_LimitMakesThrustEqualPower()
+        // KSP multiplies the engine's rated thrust by throttle; the rating is set so the result is the
+        // physics thrust, not throttle × physics thrust.
+        public static void Thrust_EngineRatingGivesPhysicsThrust()
         {
-            double limit = PlutoReactorModel.ThrustLimitPercent(0.5, 0.5);
-            Assert.Equal(0.5, 0.5 * limit / 100, 1e-9, "50% throttle, 50% power → 50% thrust");
-            Assert.Equal(0, PlutoReactorModel.ThrustLimitPercent(0, 0), 1e-9, "no power, no thrust");
-            Assert.Equal(100, PlutoReactorModel.ThrustLimitPercent(1, 0.001), 1e-9, "capped at 100%");
+            double rating = PlutoRamjet.EngineRatingKN(150e3, 0.5);
+            Assert.Equal(150, rating * 0.5, 1e-9, "50% throttle → physics thrust");
+            Assert.Equal(0, PlutoRamjet.EngineRatingKN(0, 0.5), 1e-9, "no thrust");
+            Assert.True(PlutoRamjet.EngineRatingKN(300e3, 0) <= PlutoRamjet.MaxRatingKN, "capped at zero throttle");
         }
 
         // Optimisation: prediction with 0.5 s steps stays within 1% of the analytic range.
