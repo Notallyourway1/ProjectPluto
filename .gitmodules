@@ -1,0 +1,3 @@
+[submodule "tools/io_object_mu"]
+	path = tools/io_object_mu
+	url = https://github.com/taniwha/io_object_mu.git
