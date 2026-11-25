@@ -30,6 +30,7 @@ namespace ProjectPluto
         public const double WarheadMassT = 0.5;
         public const double AutoReleaseSeconds = 60;
         public const double TossUpMs = 30;
+        public const double TossBackMs = 10;
         public const double WarheadArmSeconds = 2;
         public const double WarheadSafetySeconds = 120;
         public const double TossMaxCrossTrackM = 400;

@@ -97,7 +97,10 @@ namespace ProjectPluto
 
             if (boostEngine != null)
             {
+                // The config forbids shutting the boosters down by hand; allow it for the jettison.
+                boostEngine.allowShutdown = true;
                 boostEngine.Shutdown();
+                boostEngine.allowShutdown = false;
                 boostEngine.allowRestart = false;
             }
             PartResource fuel = part.Resources["SolidFuel"];
@@ -133,6 +136,16 @@ namespace ProjectPluto
                 GameObject copy = Instantiate(booster.gameObject, booster.position, booster.rotation);
                 foreach (Collider c in copy.GetComponentsInChildren<Collider>(true))
                     Destroy(c);
+                // Debris must not keep the booster's flame and smoke.
+                foreach (Transform child in copy.GetComponentsInChildren<Transform>(true))
+                {
+                    if (child != copy.transform && child.name == "boostThrust")
+                        Destroy(child.gameObject);
+                }
+                foreach (KSPParticleEmitter emitter in copy.GetComponentsInChildren<KSPParticleEmitter>(true))
+                    Destroy(emitter.gameObject);
+                foreach (ParticleSystem system in copy.GetComponentsInChildren<ParticleSystem>(true))
+                    Destroy(system.gameObject);
                 copy.SetActive(true);
                 Vector3 outward = Vector3.ProjectOnPlane(booster.position - part.transform.position, part.transform.up);
                 Vector3 push = outward.normalized * debrisPush - part.transform.up * (debrisPush * 0.5f);

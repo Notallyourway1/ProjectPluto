@@ -43,10 +43,31 @@ namespace ProjectPluto
             vel = vel + accel * dt;
         }
 
+        // Warhead velocity at release: the missile's velocity plus a toss up and backward from the hatch.
+        public static PlutoVec TossVelocity(PlutoVec missileVelocity, PlutoVec up)
+        {
+            PlutoVec toss = missileVelocity + up * PlutoConstants.TossUpMs;
+            double speed = missileVelocity.Length;
+            if (speed > 1)
+                toss = toss - missileVelocity * (PlutoConstants.TossBackMs / speed);
+            return toss;
+        }
+
+        // True when the missile, flying on at missileVelocity, is still within radius of the impact point
+        // when a warhead released from releasePos lands after fallTime.
+        public static bool MissileInsideBlast(PlutoVec releasePos, PlutoVec missileVelocity, PlutoVec impact,
+            double fallTime, double radius) =>
+            (releasePos + missileVelocity * fallTime - impact).Length < radius;
+
         // Where a warhead released with this state would hit the ground (or where it is after maxT).
         public static PlutoVec PredictImpact(PlutoVec pos, PlutoVec vel, PlutoVec gravity, double dragPerM,
-            Func<PlutoVec, double> heightAboveGround, double dt = 0.05, double maxT = 120)
+            Func<PlutoVec, double> heightAboveGround, double dt = 0.05, double maxT = 120) =>
+            PredictImpact(pos, vel, gravity, dragPerM, heightAboveGround, out _, dt, maxT);
+
+        public static PlutoVec PredictImpact(PlutoVec pos, PlutoVec vel, PlutoVec gravity, double dragPerM,
+            Func<PlutoVec, double> heightAboveGround, out double fallTime, double dt = 0.05, double maxT = 120)
         {
+            fallTime = maxT;
             double hBefore = heightAboveGround(pos);
             for (double t = 0; t < maxT; t += dt)
             {
@@ -56,8 +77,9 @@ namespace ProjectPluto
                 if (hAfter <= 0)
                 {
                     // Interpolate to the ground crossing within the step.
-                    double f = hBefore > hAfter ? hBefore / (hBefore - hAfter) : 1;
-                    return before + (pos - before) * Math.Max(0, Math.Min(1, f));
+                    double f = Math.Max(0, Math.Min(1, hBefore > hAfter ? hBefore / (hBefore - hAfter) : 1));
+                    fallTime = t + f * dt;
+                    return before + (pos - before) * f;
                 }
                 hBefore = hAfter;
             }

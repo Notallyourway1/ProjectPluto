@@ -107,6 +107,11 @@ namespace ProjectPluto
                 v.rootPart?.explode();
                 return;
             }
+            // Leave IVA first if the player is looking through this kerbal's eyes.
+            if (CameraManager.Instance != null
+                && CameraManager.Instance.currentCameraMode == CameraManager.CameraMode.IVA
+                && v == FlightGlobals.ActiveVessel)
+                CameraManager.Instance.SetCameraFlight();
             Part seat = kerbal.seat != null ? kerbal.seat.part : null;
             if (seat == null)
             {
@@ -119,6 +124,8 @@ namespace ProjectPluto
             if (seat != null)
                 seat.RemoveCrewmember(kerbal);
             kerbal.Die();
+            GameEvents.onCrewKilled.Fire(new EventReport(FlightEvents.CREW_KILLED, seat,
+                kerbal.name, "radiation", 0, "Lethal radiation dose from a Pluto reactor", 0f));
             v.CrewListSetDirty();
             GameEvents.onVesselCrewWasModified.Fire(v);
         }
@@ -151,9 +158,12 @@ namespace ProjectPluto
         public override void OnSave(ConfigNode node)
         {
             base.OnSave(node);
-            ConfigNode doseNode = node.AddNode("DOSES");
             foreach (var entry in doses)
-                doseNode.AddValue(entry.Key.Replace(' ', '_'), entry.Value.ToString("R", CultureInfo.InvariantCulture));
+            {
+                ConfigNode k = node.AddNode("KERBAL");
+                k.AddValue("name", entry.Key);
+                k.AddValue("dose", entry.Value.ToString("R", CultureInfo.InvariantCulture));
+            }
             foreach (Breach b in breaches)
             {
                 ConfigNode n = node.AddNode("BREACH");
@@ -170,14 +180,11 @@ namespace ProjectPluto
             base.OnLoad(node);
             doses.Clear();
             breaches.Clear();
-            ConfigNode doseNode = node.GetNode("DOSES");
-            if (doseNode != null)
+            foreach (ConfigNode k in node.GetNodes("KERBAL"))
             {
-                foreach (ConfigNode.Value value in doseNode.values)
-                {
-                    if (double.TryParse(value.value, NumberStyles.Float, CultureInfo.InvariantCulture, out double d))
-                        doses[value.name.Replace('_', ' ')] = d;
-                }
+                string name = k.GetValue("name");
+                if (!string.IsNullOrEmpty(name) && Parse(k, "dose", out double d))
+                    doses[name] = d;
             }
             foreach (ConfigNode n in node.GetNodes("BREACH"))
             {

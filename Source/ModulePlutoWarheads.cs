@@ -77,9 +77,10 @@ namespace ProjectPluto
                 return false;
 
             CelestialBody body = vessel.mainBody;
-            Vector3 origin = hatch != null ? hatch.position : part.transform.position;
-            Vector3 up = (origin - (Vector3)body.position).normalized;
-            Vector3 velocity = (Vector3)vessel.srf_velocity + up * (float)PlutoConstants.TossUpMs;
+            ReleaseState(body, out Vector3 origin, out PlutoVec position, out PlutoVec localVelocity);
+            Vector3 velocity = body.transform.TransformDirection(
+                new Vector3((float)localVelocity.X, (float)localVelocity.Y, (float)localVelocity.Z));
+            WarnIfInsideBlast(body, position, localVelocity);
 
             GameObject bomb = CreateBombVisual(origin);
             PlutoFallingObject falling = PlutoFallingObject.Attach(bomb, body, origin, velocity);
@@ -103,17 +104,35 @@ namespace ProjectPluto
         }
 
         // Where a warhead released now would land, in the body's own frame.
-        public PlutoVec PredictImpactBodyRelative()
+        public PlutoVec PredictImpactBodyRelative() => PredictImpactBodyRelative(out _);
+
+        private PlutoVec PredictImpactBodyRelative(out double fallTime)
         {
             CelestialBody body = vessel.mainBody;
-            Vector3 origin = hatch != null ? hatch.position : part.transform.position;
-            Vector3 up = (origin - (Vector3)body.position).normalized;
-            Vector3 velocity = (Vector3)vessel.srf_velocity + up * (float)PlutoConstants.TossUpMs;
-            PlutoVec position = PlutoFallingObject.ToLocalPoint(body, origin);
-            PlutoVec localVelocity = PlutoFallingObject.ToLocalVector(body, velocity);
-            PlutoVec gravity = PlutoFallingObject.Gravity(body, position);
-            return PlutoBallistics.PredictImpact(position, localVelocity, gravity, DragPerM(vessel.atmDensity),
-                p => PlutoFallingObject.HeightAboveGround(body, p), 0.5, 60);
+            ReleaseState(body, out _, out PlutoVec position, out PlutoVec localVelocity);
+            return Predict(body, position, localVelocity, out fallTime);
+        }
+
+        private PlutoVec Predict(CelestialBody body, PlutoVec position, PlutoVec localVelocity, out double fallTime) =>
+            PlutoBallistics.PredictImpact(position, localVelocity, PlutoFallingObject.Gravity(body, position),
+                DragPerM(vessel.atmDensity), p => PlutoFallingObject.HeightAboveGround(body, p), out fallTime, 0.5, 60);
+
+        // Hatch position and the warhead's toss velocity (up and backward), in the body's frame.
+        private void ReleaseState(CelestialBody body, out Vector3 origin, out PlutoVec position, out PlutoVec velocity)
+        {
+            origin = hatch != null ? hatch.position : part.transform.position;
+            position = PlutoFallingObject.ToLocalPoint(body, origin);
+            PlutoVec up = position * (1 / System.Math.Max(position.Length, 1));
+            velocity = PlutoBallistics.TossVelocity(PlutoFallingObject.ToLocalVector(body, vessel.srf_velocity), up);
+        }
+
+        private void WarnIfInsideBlast(CelestialBody body, PlutoVec position, PlutoVec tossVelocity)
+        {
+            PlutoVec impact = Predict(body, position, tossVelocity, out double fallTime);
+            PlutoVec missileVelocity = PlutoFallingObject.ToLocalVector(body, vessel.srf_velocity);
+            if (PlutoBallistics.MissileInsideBlast(position, missileVelocity, impact, fallTime, PlutoConstants.DamageRadiusM))
+                ScreenMessages.PostScreenMessage("Warning: too slow or low — the missile will be inside this warhead's blast.",
+                    5f, ScreenMessageStyle.UPPER_CENTER);
         }
 
         private static double DragPerM(double density) => SeaLevelDragPerM * Math.Max(0, density) / SeaLevelDensity;

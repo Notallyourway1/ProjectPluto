@@ -41,8 +41,9 @@ These are gameplay choices, not history:
 - **Radiation:** dose rate = 13,600 × (power / 600 MW) / distance² Sv/s, chosen so a Mach 3 pass
   150 m overhead gives about 0.28 Sv. Warnings at 0.1 and 1 Sv; **6 Sv is lethal**. A reactor
   destroyed while hot leaves a radiation source at 10% strength for 10 minutes.
-- **Warheads:** 16 × 0.5 t, tossed upward at 30 m/s, armed after 2 s, detonating on impact (or after
-  120 s). Each burst is a 1 Mt effect scaled for Kerbin: about 280 m fireball radius, 3 km cloud,
+- **Warheads:** 16 × 0.5 t, tossed up at 30 m/s and back at 10 m/s, armed after 2 s, detonating on
+  impact (or after 120 s). A screen warning appears if a release is slow or low enough that the
+  missile will still be inside the blast. Each burst is a 1 Mt effect scaled for Kerbin: about 280 m fireball radius, 3 km cloud,
   500 m damage radius. A nearby blast does not set off another missile's warheads.
 - **The bombing-run autopilot.**
 - The model's details (canard and fin sizes, booster shape, markings).

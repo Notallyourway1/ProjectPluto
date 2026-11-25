@@ -41,6 +41,7 @@ namespace ProjectPluto
         private ModulePlutoWarheads warheads;
         private ModulePlutoReactor reactor;
         private bool attached;
+        private Vessel subscribed;
         private float levelOffLeft;
         private int frame;
         private double[] samples;
@@ -101,6 +102,7 @@ namespace ProjectPluto
             sasWasOn = vessel.ActionGroups[KSPActionGroup.SAS];
             vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
             vessel.OnFlyByWire += Fly;
+            subscribed = vessel;
             attached = true;
             runActive = true;
             Post(run.Message);
@@ -126,10 +128,18 @@ namespace ProjectPluto
         {
             if (vessel == null || run == null)
                 return;
+            if (vessel != subscribed)
+            {
+                // The missile separated from the craft it was part of: stop flying the old one.
+                run.Abort("Bombing run aborted: missile changed vessel.");
+                Finish();
+                return;
+            }
 
-            bool manual = Mathf.Abs(s.pitch - s.pitchTrim) > ManualThreshold
+            // Only the active vessel takes player input; elsewhere the state holds our own last outputs.
+            bool manual = vessel == FlightGlobals.ActiveVessel && (Mathf.Abs(s.pitch - s.pitchTrim) > ManualThreshold
                 || Mathf.Abs(s.yaw - s.yawTrim) > ManualThreshold
-                || Mathf.Abs(s.roll - s.rollTrim) > ManualThreshold;
+                || Mathf.Abs(s.roll - s.rollTrim) > ManualThreshold);
             float dt = TimeWarp.fixedDeltaTime;
             CelestialBody body = vessel.mainBody;
             Vector3d position = vessel.CoMD;
@@ -290,11 +300,12 @@ namespace ProjectPluto
             attached = false;
             runActive = false;
             levelOffLeft = 0;
-            if (vessel != null)
+            if (subscribed != null)
             {
-                vessel.OnFlyByWire -= Fly;
-                if (sasWasOn)
+                subscribed.OnFlyByWire -= Fly;
+                if (sasWasOn && subscribed == vessel)
                     vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
+                subscribed = null;
             }
             status = "Manual control";
             RefreshControls();
