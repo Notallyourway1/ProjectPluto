@@ -18,7 +18,7 @@ back, with no fuel to burn. The missile was SLAM. Only the engine was ever built
 |---|---|
 | Length / body diameter | 26.8 m / 1.5 m |
 | Launch mass | 27,540 kg |
-| Shape | Wingless; three tail fins, small canards near the nose, belly air scoop; gold-plated forward sections to radiate heat |
+| Shape | Wingless; long cone nose with a terrain-avoidance antenna probe; three small all-moving control fins on the nose; ventral intake pod with a centre cone; warhead bay on top amidships; three swept tail fins; gold-plated forward sections to radiate heat |
 | Speed | Mach 3–3.5 at 150–300 m; Mach 4.2 at about 9 km |
 | Range | 21,300 km low; 182,000 km high |
 | Reactor | 600 MW thermal, unshielded; 465,000 ceramic fuel tubes; about 1,277 °C |
@@ -70,7 +70,9 @@ These are gameplay choices, not history:
 - **The bombing-run autopilot.**
 - **The launcher:** a cradle and tower that tilts the missile to a set elevation and holds it until
   launch. The real SLAM's launch arrangement was never settled.
-- The model's details (canard and fin sizes, booster shape, markings).
+- The model's details. Its shape and paint follow Vought's 1/10 scale model and its cutaway drawing
+  (copper forward body, white tail section, USAF star-and-bar insignia), but exact fin sizes, booster
+  shape and positions are estimates from photos.
 
 ## Install on macOS
 
@@ -143,6 +145,7 @@ python3 -I Source/BuildPluto.py tools/io_object_mu GameData/ProjectPluto/Parts/A
 - [Project Pluto](https://en.wikipedia.org/wiki/Project_Pluto), Wikipedia
 - [SLAM](https://designation-systems.net/dusrm/app4/slam.html), Directory of U.S. Military Rockets and Missiles
 - [SLAM airframe](https://vought.org/special/html/sslam1.html) and [reactor](https://vought.org/special/html/sslam3.html), Vought Heritage
+- [SLAM photographs](https://vought.org/photo/html/pslam.html) (1/10 scale model and cutaway), Vought Heritage: the model's shape and paint
 - [Tory IIC reactor test report](https://www.osti.gov/biblio/4333097) and [Tory IIC test operations](https://www.osti.gov/biblio/4356168-tory-iic-test-operations), OSTI
 - [Project Pluto: The Nuclear Crowbar](https://scalar.chapman.edu/scalar/project-pluto-the-nuclear-crowbar/slams), Chapman University
 - Detonation visuals adapted from the author's Project Sundial mod.
