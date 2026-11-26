@@ -50,14 +50,16 @@ These are gameplay choices, not history:
 - **Airframe heat:** 0.2% of reactor power leaks into the structure, plus 50 kW per °C the core runs
   above design temperature. KSP's heat system takes it from there. At normal operation this is a
   small effect next to aerodynamic heating at Mach 3.
-- **Radioactive exhaust trail:** fission fragments in the exhaust leave a faint haze line. Each
+- **Radioactive exhaust trail:** fission fragments in the exhaust leave a haze that starts as a thin
+  pale streak behind the nozzle, spreads to about 70 m wide and fades to blue-grey as it ages. Each
   second of flight leaves a source of 0.5% of reactor power that decays over about a minute and is
   gone after five, dosing kerbals underneath.
 - **Inlet unstart:** above Mach 4.5 the scoop unstarts and captures only 20% of its air, so thrust
   and cooling collapse until the missile stays below Mach 4.0 for 2 s.
 - **Exhaust visuals:** the nozzle glows from dull red to orange with exhaust temperature, and the
   exhaust shows faint red shock diamonds. With **Waterfall** and **Stock Waterfall Effects**
-  installed, an optional patch uses their jet-exhaust plume instead; nothing else is needed without them.
+  installed, an optional patch uses their afterburning-ramjet plume (the one they give the Whiplash):
+  heat shimmer and shock diamonds that grow with speed. Nothing else is needed without them.
 - **Radiation:** dose rate = 13,600 × (power / 600 MW) / distance² Sv/s, chosen so a Mach 3 pass
   150 m overhead gives about 0.28 Sv. Warnings at 0.1 and 1 Sv; **6 Sv is lethal**. A reactor
   destroyed while hot leaves a radiation source at 10% strength for 10 minutes.

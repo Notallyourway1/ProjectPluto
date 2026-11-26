@@ -21,15 +21,16 @@ namespace ProjectPluto
         public int Count => points.Count;
         public Point this[int i] => points[i];
 
-        // Drops a point when the reactor is powered and the interval has passed.
-        public void AddIfDue(PlutoVec position, double powerMW, double now)
+        // Drops a point when the reactor is powered and the interval has passed. Returns true if it did.
+        public bool AddIfDue(PlutoVec position, double powerMW, double now)
         {
             if (powerMW <= 0 || now - lastAdded < PlutoConstants.TrailIntervalSeconds - 1e-9)
-                return;
+                return false;
             lastAdded = now;
             points.Add(new Point { Position = position, PowerMW = powerMW, Time = now });
             if (points.Count > MaxPoints)
                 points.RemoveAt(0);
+            return true;
         }
 
         public void Prune(double now)

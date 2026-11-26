@@ -14,8 +14,13 @@ namespace ProjectPluto
         private const double DoseIntervalSeconds = 0.1;
         // A pause longer than this (SCRAM, shutdown) starts a new trail instead of joining the gap.
         public const double GapSeconds = 3;
-        private const float WidthM = 8f;
-        private static readonly Color Haze = new Color(0.72f, 0.76f, 0.66f, 1f);
+        // Width, colour and fade are re-sampled twice a second as the trail ages.
+        private const float LookIntervalSeconds = 0.5f;
+        // Up to this many width/colour keys along the line (Unity gradients take at most 8).
+        private const int LookKeys = 8;
+        // One billow of the haze texture every this many metres along the trail.
+        private const float BillowLengthM = 220f;
+        private static Texture2D hazeTexture;
         private static readonly string[] ShaderNames =
         {
             "Legacy Shaders/Particles/Alpha Blended",
@@ -36,6 +41,8 @@ namespace ProjectPluto
         private bool hasLive;
         private Vector3 liveLocal;
         private int drawnCount = -1;
+        private float lookTimer;
+        private readonly Gradient gradient = new Gradient();
         private double lastRecord = double.NegativeInfinity;
         private double doseTimer;
 
@@ -52,8 +59,11 @@ namespace ProjectPluto
             trail.source = source;
             trail.line = go.AddComponent<LineRenderer>();
             trail.line.useWorldSpace = false;
-            trail.line.widthMultiplier = WidthM;
-            trail.line.numCapVertices = 2;
+            trail.line.widthMultiplier = 1f;
+            trail.line.numCapVertices = 4;
+            trail.line.numCornerVertices = 2;
+            trail.line.textureMode = LineTextureMode.Tile;
+            trail.line.alignment = LineAlignment.View;
             trail.line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             trail.line.receiveShadows = false;
             Shader shader = null;
@@ -65,7 +75,8 @@ namespace ProjectPluto
             }
             if (shader != null)
             {
-                trail.material = new Material(shader) { mainTexture = Texture2D.whiteTexture };
+                trail.material = new Material(shader) { mainTexture = HazeTexture() };
+                trail.material.mainTextureScale = new Vector2(1f / BillowLengthM, 1f);
                 trail.line.material = trail.material;
             }
             else
@@ -76,11 +87,13 @@ namespace ProjectPluto
         // Drops a trail point when due, and keeps the line's head at the nozzle.
         public void Record(Vector3 worldPosition, double powerMW, double now)
         {
-            model.AddIfDue(PlutoFallingObject.ToLocalPoint(body, worldPosition), powerMW, now);
+            bool added = model.AddIfDue(PlutoFallingObject.ToLocalPoint(body, worldPosition), powerMW, now);
             liveLocal = body.transform.InverseTransformPoint(worldPosition);
+            // Only a new point needs the line rebuilt; the head alone just moves.
+            if (added || !hasLive)
+                drawnCount = -1;
             hasLive = true;
             lastRecord = now;
-            drawnCount = -1;
         }
 
         // The missile stopped feeding this trail (destroyed, changed body or paused too long).
@@ -181,7 +194,8 @@ namespace ProjectPluto
                 return;
             int count = model.Count;
             int total = count + (hasLive && count > 0 ? 1 : 0);
-            if (total != drawnCount)
+            bool rebuilt = total != drawnCount;
+            if (rebuilt)
             {
                 for (int i = 0; i < count; i++)
                 {
@@ -201,12 +215,67 @@ namespace ProjectPluto
             if (count == 0)
                 return;
 
-            // Oldest end faint, newest end strongest.
-            double now = Planetarium.GetUniversalTime();
-            float newest = (float)model.Fade(count - 1, now);
-            float oldest = (float)model.Fade(0, now);
-            line.startColor = new Color(Haze.r, Haze.g, Haze.b, 0.25f * oldest);
-            line.endColor = new Color(Haze.r, Haze.g, Haze.b, 0.25f * newest);
+            lookTimer -= Time.deltaTime;
+            if (rebuilt || lookTimer <= 0)
+            {
+                lookTimer = LookIntervalSeconds;
+                RefreshLook(Planetarium.GetUniversalTime(), count, total);
+            }
+        }
+
+        // Samples width, colour and fade along the line from each point's age (oldest end first).
+        private void RefreshLook(double now, int count, int total)
+        {
+            int keys = Mathf.Clamp(total, 2, LookKeys);
+            var widths = new Keyframe[keys];
+            var colours = new GradientColorKey[keys];
+            var alphas = new GradientAlphaKey[keys];
+            for (int k = 0; k < keys; k++)
+            {
+                int index = Mathf.RoundToInt((float)k * (total - 1) / (keys - 1));
+                float t = total > 1 ? (float)index / (total - 1) : k;
+                double age = index < count ? now - model[index].Time : 0;
+                widths[k] = new Keyframe(t, (float)PlutoTrailLook.WidthM(age));
+                PlutoTrailLook.Colour(age, out double r, out double g, out double b);
+                colours[k] = new GradientColorKey(new Color((float)r, (float)g, (float)b), t);
+                alphas[k] = new GradientAlphaKey((float)PlutoTrailLook.Alpha(age), t);
+            }
+            line.widthCurve = new AnimationCurve(widths);
+            gradient.SetKeys(colours, alphas);
+            line.colorGradient = gradient;
+        }
+
+        // Soft-edged, billowy white texture shared by all trails: alpha falls off across the width and
+        // varies gently along the length.
+        private static Texture2D HazeTexture()
+        {
+            if (hazeTexture != null)
+                return hazeTexture;
+            const int along = 128, across = 32;
+            hazeTexture = new Texture2D(along, across, TextureFormat.RGBA32, true)
+            {
+                name = "Pluto exhaust haze",
+                wrapModeU = TextureWrapMode.Repeat,
+                wrapModeV = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            var pixels = new Color32[along * across];
+            for (int y = 0; y < across; y++)
+            {
+                float v = (y + 0.5f) / across * 2f - 1f;
+                for (int x = 0; x < along; x++)
+                {
+                    float u = (float)x / along * Mathf.PI * 2f;
+                    // Whole-number frequencies so the pattern repeats seamlessly.
+                    float billow = 0.72f + 0.16f * Mathf.Sin(u * 2f + 1.3f) + 0.12f * Mathf.Sin(u * 5f + v * 2.1f);
+                    float edge = 0.28f + 0.1f * Mathf.Sin(u * 3f + 0.7f);
+                    float profile = Mathf.Exp(-(v * v) / (2f * edge * edge));
+                    pixels[y * along + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(profile * billow));
+                }
+            }
+            hazeTexture.SetPixels32(pixels);
+            hazeTexture.Apply(true, true);
+            return hazeTexture;
         }
     }
 }
