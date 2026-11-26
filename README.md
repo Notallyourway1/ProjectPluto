@@ -104,12 +104,14 @@ These are gameplay choices, not history:
    (default 150 m, 100–500 m), holds it over the terrain at the run speed (default Mach 3), and
    releases warheads:
    - with **Release on target** on and a target selected, a warhead is thrown so it lands on the target;
-   - otherwise one every 60 s, the line of strikes from the "What if" video.
+   - otherwise (no target needed) one every **Release interval** (default 60 s, 2–120 s, adjustable in
+     flight), the line of strikes from the "What if" video. At Mach 3, 10 s is about 10 km apart.
+   Releases that would leave the missile inside its own blast (too slow or too low) are held until safe.
 6. Touching pitch, yaw or roll **aborts the run** and gives you control at once. The run also stops if
    the reactor SCRAMs or the missile leaves the atmosphere. When the last warhead is gone it levels
    off and hands control back.
 
-You can also release warheads by hand at any time (**Release warhead**), or switch on **Auto-release**.
+Without a run or a target you can release warheads by hand at any time (**Release warhead**, also an action group), or switch on **Auto-release** to drop one every **Release interval**.
 
 If the autopilot pitches or rolls the wrong way, set `pitchSign = -1` or `rollSign = -1` in the
 `ModulePlutoAutopilot` block of `GameData/ProjectPluto/Parts/Pluto.cfg`.

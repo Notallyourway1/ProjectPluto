@@ -11,7 +11,10 @@ namespace ProjectPluto
         private const double SeaLevelDensity = 1.225;
 
         [KSPField] public string hatchTransform = "warheadHatch";
-        [KSPField] public float autoReleaseSeconds = (float)PlutoConstants.AutoReleaseSeconds;
+        // Gap between automatic releases (auto-release, or a bombing run with no target). Adjustable in flight.
+        [KSPField(isPersistant = true, guiActive = true, guiName = "Release interval", guiUnits = " s"),
+            UI_FloatRange(minValue = 2f, maxValue = 120f, stepIncrement = 1f, scene = UI_Scene.Flight)]
+        public float autoReleaseSeconds = (float)PlutoConstants.AutoReleaseSeconds;
 
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Warheads")]
         public int warheadsLeft = PlutoConstants.WarheadCount;
@@ -43,6 +46,13 @@ namespace ProjectPluto
             base.OnStart(state);
             hatch = part.FindModelTransform(hatchTransform);
             lastAutoRelease = autoRelease;
+            // A shorter interval takes effect at once instead of after the old, longer wait.
+            Fields[nameof(autoReleaseSeconds)].uiControlFlight.onFieldChanged = (field, old) =>
+            {
+                double now = Planetarium.GetUniversalTime();
+                if (nextAutoReleaseUT > now + autoReleaseSeconds)
+                    nextAutoReleaseUT = now + autoReleaseSeconds;
+            };
             RefreshControls();
         }
 
@@ -179,6 +189,7 @@ namespace ProjectPluto
         {
             Events[nameof(ReleaseWarheadEvent)].active = warheadsLeft > 0;
             Fields[nameof(autoRelease)].guiActive = warheadsLeft > 0;
+            Fields[nameof(autoReleaseSeconds)].guiActive = warheadsLeft > 0;
         }
 
         public float GetModuleMass(float defaultMass, ModifierStagingSituation sit) =>
