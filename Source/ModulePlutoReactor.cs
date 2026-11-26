@@ -18,20 +18,21 @@ namespace ProjectPluto
         [KSPField] public float electricRate = 5f;
         [KSPField] public float thrustMultiplier = (float)PlutoConstants.ThrustMultiplier;
 
-        [KSPField(guiActive = true, guiName = "Reactor")]
+        // Two readout rows (see PlutoReadout): reactor state, power and core temperature; ramjet thrust,
+        // exhaust temperature, cooling air and inlet state.
+        [KSPField(guiActive = true, guiName = "Reactor", groupName = PlutoReadout.Group,
+            groupDisplayName = PlutoReadout.GroupTitle)]
         public string stateText = "Cold";
-        [KSPField(guiActive = true, guiName = "Reactor power", guiFormat = "F0", guiUnits = " MW")]
-        public float powerMW;
-        [KSPField(guiActive = true, guiName = "Core temperature", guiFormat = "F0", guiUnits = " °C")]
-        public float coreTempC;
-        [KSPField(guiActive = true, guiName = "Cooling airflow", guiFormat = "P0")]
-        public float airflow;
-        [KSPField(guiActive = true, guiName = "Exhaust temperature", guiFormat = "F0", guiUnits = " °C")]
-        public float exhaustTempC;
-        [KSPField(guiActive = true, guiName = "Ramjet thrust", guiFormat = "F0", guiUnits = " kN")]
-        public float thrustKN;
-        [KSPField(guiActive = true, guiName = "Inlet")]
-        public string inletText = "Started";
+        [KSPField(guiActive = true, guiName = "Ramjet", groupName = PlutoReadout.Group,
+            groupDisplayName = PlutoReadout.GroupTitle)]
+        public string ramjetText = "Off";
+
+        private float powerMW;
+        private float coreTempC;
+        private float airflow;
+        private float exhaustTempC;
+        private float thrustKN;
+        private double readoutTimer;
 
         private const string NozzleGlowTransform = "NozzleGlow";
         // Seconds for the nozzle to heat up or cool down visibly.
@@ -143,7 +144,6 @@ namespace ProjectPluto
                     ScreenMessages.PostScreenMessage("Inlet restarted.", 3f, ScreenMessageStyle.UPPER_CENTER);
                     break;
             }
-            inletText = inlet.Started ? "Started" : "UNSTARTED";
             double area = PlutoConstants.IntakeAreaM2 * inlet.CaptureFactor;
 
             // How much heat the rammed air can carry away decides cooling; the same physics gives thrust.
@@ -192,10 +192,13 @@ namespace ProjectPluto
             powerMW = (float)Model.PowerMW;
             coreTempC = (float)Model.CoreTempC;
             airflow = (float)flow;
-            if (Model.State != shownState)
+            readoutTimer -= dt;
+            if (readoutTimer <= 0 || Model.State != shownState)
             {
+                readoutTimer = PlutoReadout.RefreshSeconds;
                 shownState = Model.State;
-                stateText = StateNames[(int)shownState];
+                stateText = PlutoReadout.Reactor(StateNames[(int)shownState], Model.IsPowered, powerMW, coreTempC);
+                ramjetText = PlutoReadout.Ramjet(Model.IsPowered, thrustKN, exhaustTempC, airflow, inlet.Started);
             }
         }
 
@@ -243,14 +246,16 @@ namespace ProjectPluto
             ramjet.maxFuelFlow = ramjetIsp > 0 ? rating / (ramjetIsp * ramjet.g) : 0f;
         }
 
-        [KSPEvent(guiActive = true, guiName = "SCRAM reactor")]
+        [KSPEvent(guiActive = true, guiName = "SCRAM reactor", groupName = PlutoReadout.Group,
+            groupDisplayName = PlutoReadout.GroupTitle)]
         public void Scram()
         {
             Model.Scram();
             RefreshControls();
         }
 
-        [KSPEvent(guiActive = true, guiName = "Restart reactor")]
+        [KSPEvent(guiActive = true, guiName = "Restart reactor", groupName = PlutoReadout.Group,
+            groupDisplayName = PlutoReadout.GroupTitle)]
         public void Restart()
         {
             if (Model.CoreTempC >= PlutoConstants.RestartTempC)

@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace ProjectPluto
 {
-    // Flies the missile only during the bombing run: dives to the run height, follows the terrain toward
-    // the target, releases the warheads, then hands control back. Before "Commence bombing run" it does
-    // nothing at all; any manual input during the run aborts it.
+    // Two autopilots. Take-off (a setting, on by default): flies off the launcher, climbs to the cruise
+    // height and cruises there. Bombing run: dives to the run height, follows the terrain toward the
+    // target, releases the warheads, then hands control back. Any manual input ends either one.
     public sealed class ModulePlutoAutopilot : PartModule
     {
         private const float ManualThreshold = 0.05f;
@@ -15,15 +15,27 @@ namespace ProjectPluto
         // Only predict a toss when the target is this close ahead along the track.
         private const double PredictRangeM = 20000;
 
-        [KSPField(isPersistant = true, guiActive = true, guiName = "Run height", guiUnits = " m"),
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Take-off autopilot",
+            groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle),
+            UI_Toggle(disabledText = "Off", enabledText = "On", scene = UI_Scene.All)]
+        public bool takeoffAutopilot = true;
+
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Cruise height",
+            guiUnits = " m", groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle),
+            UI_FloatRange(minValue = 300f, maxValue = 5000f, stepIncrement = 100f, scene = UI_Scene.All)]
+        public float cruiseHeight = 1000f;
+
+        [KSPField(isPersistant = true, guiActive = true, guiName = "Run height", guiUnits = " m",
+            groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle),
             UI_FloatRange(minValue = 100f, maxValue = 500f, stepIncrement = 10f, scene = UI_Scene.Flight)]
         public float runHeight = (float)PlutoConstants.RunHeightM;
 
-        [KSPField(isPersistant = true, guiActive = true, guiName = "Run speed (Mach)", guiFormat = "F1"),
+        [KSPField(isPersistant = true, guiActive = true, guiName = "Cruise and run speed (Mach)", guiFormat = "F1",
+            groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle),
             UI_FloatRange(minValue = 2f, maxValue = 4f, stepIncrement = 0.1f, scene = UI_Scene.Flight)]
         public float runMach = (float)PlutoConstants.RunMach;
 
-        [KSPField(guiActive = true, guiName = "Bombing run")]
+        [KSPField(guiActive = true, guiName = "Autopilot", groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle)]
         public string status = "Manual control";
 
         // Flip these in the part config if a control axis turns out reversed in game.
@@ -34,12 +46,17 @@ namespace ProjectPluto
         [KSPField(isPersistant = true)] public bool runActive;
         [KSPField(isPersistant = true)] public bool runOwnsAutoRelease;
         [KSPField(isPersistant = true)] public bool sasWasOn;
+        [KSPField(isPersistant = true)] public bool takeoffDone;
+        [KSPField(isPersistant = true)] public bool takeoffActive;
 
         private PlutoRunController run;
         private readonly PlutoTossTrigger toss = new PlutoTossTrigger();
         private PlutoPid pitchPid, rollPid, throttlePid;
         private ModulePlutoWarheads warheads;
         private ModulePlutoReactor reactor;
+        private ModulePlutoBoosters boosters;
+        private PlutoTakeoffController takeoff;
+        private PlutoTakeoffPhase shownTakeoffPhase;
         private bool attached;
         private Vessel subscribed;
         private float levelOffLeft;
@@ -49,6 +66,8 @@ namespace ProjectPluto
         private double groundAsl;
 
         public override string GetInfo() =>
+            "Take-off autopilot (on by default): flies off the launcher, climbs to the cruise height and cruises " +
+            "there until you move the controls.\n" +
             "Bombing-run autopilot. Manual control until you choose Commence bombing run; then it dives to " +
             $"{PlutoConstants.RunHeightM:0} m, follows the terrain at Mach {PlutoConstants.RunMach:0} toward the " +
             "selected target and releases the warheads. Any control input aborts the run.";
@@ -58,6 +77,15 @@ namespace ProjectPluto
             base.OnStart(state);
             warheads = part.FindModuleImplementing<ModulePlutoWarheads>();
             reactor = part.FindModuleImplementing<ModulePlutoReactor>();
+            boosters = part.FindModuleImplementing<ModulePlutoBoosters>();
+            if (HighLogic.LoadedSceneIsFlight && takeoffActive)
+            {
+                if (sasWasOn && vessel != null)
+                    vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
+                takeoffActive = false;
+                takeoffDone = true;
+                Post("Take-off autopilot ended by reload: manual control.");
+            }
             if (HighLogic.LoadedSceneIsFlight && runActive)
             {
                 // A run cannot survive a reload: undo what it switched on and hand control back.
@@ -73,10 +101,10 @@ namespace ProjectPluto
 
         public void OnDestroy() => Detach();
 
-        [KSPEvent(guiActive = true, guiName = "Commence bombing run")]
+        [KSPEvent(guiActive = true, guiName = "Commence bombing run", groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle)]
         public void CommenceRun()
         {
-            if (!HighLogic.LoadedSceneIsFlight || vessel == null || attached)
+            if (!HighLogic.LoadedSceneIsFlight || vessel == null || (attached && takeoff == null))
                 return;
             if (reactor == null || !reactor.IsRunning)
             {
@@ -91,28 +119,22 @@ namespace ProjectPluto
                 return;
             }
 
-            pitchPid = new PlutoPid(0.06, 0.02, 0.02, -1, 1);
-            rollPid = new PlutoPid(0.03, 0.005, 0.01, -1, 1);
-            throttlePid = new PlutoPid(2.0, 0.4, 0, 0, 1);
+            // The bombing run takes over from the take-off autopilot.
+            if (takeoff != null)
+                Detach();
             toss.Reset();
             runOwnsAutoRelease = false;
             levelOffLeft = 0;
-            frame = 0;
-            samples = new double[(int)(PlutoConstants.LookaheadRangeM / PlutoConstants.LookaheadStepM) + 1];
-            sasWasOn = vessel.ActionGroups[KSPActionGroup.SAS];
-            vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
-            vessel.OnFlyByWire += Fly;
-            subscribed = vessel;
-            attached = true;
+            Attach();
             runActive = true;
             Post(run.Message);
             RefreshControls();
         }
 
-        [KSPEvent(guiActive = true, guiName = "Abort bombing run")]
+        [KSPEvent(guiActive = true, guiName = "Abort bombing run", groupName = PlutoReadout.AutopilotGroup, groupDisplayName = PlutoReadout.AutopilotGroupTitle)]
         public void AbortRun()
         {
-            if (!attached)
+            if (!attached || takeoff != null || run == null)
                 return;
             run.Abort("Bombing run aborted.");
             Finish();
@@ -124,9 +146,126 @@ namespace ProjectPluto
         [KSPAction("Abort bombing run")]
         public void AbortAction(KSPActionParam param) => AbortRun();
 
+        // Shared start for both autopilots: fresh controllers, SAS off (restored on detach), fly-by-wire on.
+        private void Attach()
+        {
+            pitchPid = new PlutoPid(0.06, 0.02, 0.02, -1, 1);
+            rollPid = new PlutoPid(0.03, 0.005, 0.01, -1, 1);
+            throttlePid = new PlutoPid(2.0, 0.4, 0, 0, 1);
+            frame = 0;
+            samples = new double[(int)(PlutoConstants.LookaheadRangeM / PlutoConstants.LookaheadStepM) + 1];
+            sasWasOn = vessel.ActionGroups[KSPActionGroup.SAS];
+            vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
+            vessel.OnFlyByWire += Fly;
+            subscribed = vessel;
+            attached = true;
+        }
+
+        public void FixedUpdate()
+        {
+            if (takeoff != null && !takeoffAutopilot)
+            {
+                takeoff.End("Take-off autopilot switched off: manual control.");
+                EndTakeoff();
+                return;
+            }
+            if (!takeoffAutopilot || takeoffDone || attached || !HighLogic.LoadedSceneIsFlight || vessel == null
+                || vessel.packed || boosters == null || !boosters.BoostEngineIgnited || !MissileIsFree())
+                return;
+            takeoffDone = true;
+            takeoffActive = true;
+            takeoff = new PlutoTakeoffController(cruiseHeight);
+            takeoff.Start();
+            shownTakeoffPhase = takeoff.Phase;
+            Attach();
+            Post(takeoff.Message);
+            RefreshControls();
+        }
+
+        // Off the launcher and flying on its own (not part of a carrier craft).
+        private bool MissileIsFree()
+        {
+            if (vessel.rootPart != part)
+                return false;
+            foreach (Part child in part.children)
+            {
+                if (child.FindModuleImplementing<ModulePlutoLaunchPad>() != null)
+                    return false;
+            }
+            return true;
+        }
+
+        private bool IsManual(FlightCtrlState s) =>
+            vessel == FlightGlobals.ActiveVessel && (Mathf.Abs(s.pitch - s.pitchTrim) > ManualThreshold
+                || Mathf.Abs(s.yaw - s.yawTrim) > ManualThreshold
+                || Mathf.Abs(s.roll - s.rollTrim) > ManualThreshold);
+
+        private void FlyTakeoff(FlightCtrlState s)
+        {
+            if (vessel != subscribed)
+            {
+                takeoff.End("Take-off autopilot off: missile changed vessel.");
+                EndTakeoff();
+                return;
+            }
+            float dt = TimeWarp.fixedDeltaTime;
+            CelestialBody body = vessel.mainBody;
+            Vector3d position = vessel.CoMD;
+            Vector3d up = (position - body.position).normalized;
+            Vector3d velocity = vessel.srf_velocity;
+            Vector3d horizontal = Vector3d.Exclude(up, velocity);
+            Vector3d track = horizontal.sqrMagnitude > 1 ? horizontal.normalized
+                : (Vector3d)Vector3.ProjectOnPlane(vessel.transform.up, up).normalized;
+            if (frame++ % LookaheadEveryFrames == 0)
+            {
+                for (int i = 0; i < samples.Length; i++)
+                    samples[i] = TerrainAsl(body, position + track * (i * PlutoConstants.LookaheadStepM));
+                desiredAsl = PlutoTerrainLookahead.DesiredAltitudeAsl(samples, takeoff.CruiseHeight,
+                    PlutoConstants.LookaheadStepM, PlutoConstants.LookaheadClimbDeg);
+            }
+
+            bool boostersGone = boosters == null || boosters.boostersJettisoned;
+            bool reactorOk = reactor != null && reactor.Model.IsPowered;
+            takeoff.Update(dt, vessel.altitude, desiredAsl, vessel.srfSpeed, IsManual(s), boostersGone, reactorOk,
+                vessel.altitude < body.atmosphereDepth);
+            if (!takeoff.Flying)
+            {
+                EndTakeoff();
+                return;
+            }
+            if (takeoff.Steering)
+                FlyTo(s, takeoff.TargetFlightPathDeg, null, up, velocity, track, dt);
+            s.mainThrottle = takeoff.Phase == PlutoTakeoffPhase.Cruise
+                ? (float)throttlePid.Update(runMach - vessel.mach, dt)
+                : 1f;
+
+            if (takeoff.Phase != shownTakeoffPhase)
+            {
+                shownTakeoffPhase = takeoff.Phase;
+                if (takeoff.Phase == PlutoTakeoffPhase.Cruise)
+                    Post(takeoff.Message);
+            }
+            status = takeoff.Phase == PlutoTakeoffPhase.ClearRail ? "Take-off: leaving the launcher"
+                : takeoff.Phase == PlutoTakeoffPhase.Climb ? "Take-off: climbing"
+                : "Cruising";
+        }
+
+        private void EndTakeoff()
+        {
+            Post(takeoff.Message);
+            Detach();
+        }
+
         private void Fly(FlightCtrlState s)
         {
-            if (vessel == null || run == null)
+            if (vessel == null)
+                return;
+            if (takeoff != null)
+            {
+                FlyTakeoff(s);
+                return;
+            }
+            if (run == null)
                 return;
             if (vessel != subscribed)
             {
@@ -137,9 +276,7 @@ namespace ProjectPluto
             }
 
             // Only the active vessel takes player input; elsewhere the state holds our own last outputs.
-            bool manual = vessel == FlightGlobals.ActiveVessel && (Mathf.Abs(s.pitch - s.pitchTrim) > ManualThreshold
-                || Mathf.Abs(s.yaw - s.yawTrim) > ManualThreshold
-                || Mathf.Abs(s.roll - s.rollTrim) > ManualThreshold);
+            bool manual = IsManual(s);
             float dt = TimeWarp.fixedDeltaTime;
             CelestialBody body = vessel.mainBody;
             Vector3d position = vessel.CoMD;
@@ -213,8 +350,11 @@ namespace ProjectPluto
             // The vessel's "top" is opposite its reference transform's forward (KSP convention).
             Vector3d forward = vessel.ReferenceTransform.up;
             Vector3d top = -vessel.ReferenceTransform.forward;
-            Vector3d levelTop = Vector3d.Exclude(forward, up).normalized;
-            double bank = SignedAngle(levelTop, Vector3d.Exclude(forward, top).normalized, forward);
+            Vector3d levelTop = Vector3d.Exclude(forward, up);
+            // Pointing straight up there is no "level": hold the roll where it is.
+            double bank = levelTop.sqrMagnitude < 1e-4
+                ? 0
+                : SignedAngle(levelTop.normalized, Vector3d.Exclude(forward, top).normalized, forward);
             // No pull while steeply banked or inverted: roll upright first.
             pitch *= PlutoRunController.PitchScaleForBank(bank);
 
@@ -307,6 +447,8 @@ namespace ProjectPluto
                 return;
             attached = false;
             runActive = false;
+            takeoffActive = false;
+            takeoff = null;
             levelOffLeft = 0;
             if (subscribed != null)
             {
@@ -321,8 +463,8 @@ namespace ProjectPluto
 
         private void RefreshControls()
         {
-            Events[nameof(CommenceRun)].active = !attached;
-            Events[nameof(AbortRun)].active = attached;
+            Events[nameof(CommenceRun)].active = !attached || takeoff != null;
+            Events[nameof(AbortRun)].active = attached && takeoff == null;
         }
 
         private static void Post(string text)

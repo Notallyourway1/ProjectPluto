@@ -82,7 +82,8 @@ namespace ProjectPluto
             return solidFuel != null ? solidFuel.amount : 0;
         }
 
-        [KSPEvent(guiActive = true, guiName = "Jettison boosters")]
+        [KSPEvent(guiActive = true, guiName = "Jettison boosters", groupName = PlutoReadout.Group,
+            groupDisplayName = PlutoReadout.GroupTitle)]
         public void JettisonBoosters()
         {
             if (HighLogic.LoadedSceneIsFlight && !boostersJettisoned)

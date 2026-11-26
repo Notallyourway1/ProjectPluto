@@ -83,7 +83,7 @@ These are gameplay choices, not history:
 3. Start KSP. Two parts appear (search "pluto"); Career and Science modes unlock both with
    **Nuclear Propulsion**:
    - **Project Pluto SLAM** under **Command**: the missile. It is its own probe core with a built-in
-     antenna, reaction wheels and SAS, so it needs no other part.
+     antenna, strong reaction wheels (120 kN·m pitch and yaw, 30 roll) and SAS, so it needs no other part.
    - **Project Pluto Launcher** under **Structural**: the ground launcher.
 
 ## Fly a mission
@@ -96,13 +96,21 @@ These are gameplay choices, not history:
    Check the staging list: the launcher and the boosters should fire in the same stage. Launch, and
    the tower stands on the ground and holds the missile still. Stage once: the boosters fire, the
    missile slides off the cradle, the launcher stays behind, and the reactor starts warming up.
-2. **Booster burnout.** The boosters drop off by themselves, the reactor is at full power and the
-   ramjet takes over. The right-click menu shows reactor state, power, core temperature and cooling
-   airflow. You can **SCRAM** and **Restart** the reactor (restart needs the core below 800 °C).
-3. **Fly it yourself** for as long as you like. The ramjet breathes air only: it is weak below
-   Mach 0.7, is strongest low down around Mach 3, fades in thin air, and stops above the atmosphere.
-   The right-click menu adds ramjet thrust, exhaust temperature and inlet state. Keep below Mach 4.5 or the inlet
-   unstarts.
+2. **Take-off autopilot.** On by default (**Autopilot** group of the right-click menu, in the VAB or in
+   flight). Once the missile is off the launcher it flies straight for 1.5 s, then climbs toward the
+   **Cruise height** (default 1,000 m above the ground ahead, 300–5,000 m) on full throttle. After the
+   boosters drop off it holds about level until it passes Mach 1.2, so the ramjet can build speed,
+   then finishes the climb and cruises there at the **Cruise and run speed** (default Mach 3). Touching
+   pitch, yaw or roll, switching it off, or starting the bombing run hands over at once. Switch it off
+   to fly the take-off yourself.
+3. **Booster burnout.** The boosters drop off by themselves, the reactor is at full power and the
+   ramjet takes over. The **Reactor and engine** group of the right-click menu shows two lines: reactor
+   state, power and core temperature; and ramjet thrust, exhaust temperature, cooling air and inlet
+   state. You can **SCRAM** and **Restart** the reactor (restart needs the core below 800 °C).
+   The ramjet breathes air only: it is weak below Mach 0.7, is strongest low down around Mach 3,
+   fades in thin air, and stops above the atmosphere. Keep below Mach 4.5 or the inlet unstarts.
+   The stock parts' settings (control surfaces, engines, intake, antenna) sit in a collapsed
+   **Stock part settings** group at the bottom of the menu.
 4. **Pick a target** (any craft, a planted flag, or an active navigation waypoint), or none to fly a
    straight line.
 5. **Commence bombing run** (right-click menu or an action group). The missile dives to the run height

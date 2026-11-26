@@ -12,18 +12,21 @@ namespace ProjectPluto
 
         [KSPField] public string hatchTransform = "warheadHatch";
         // Gap between automatic releases (auto-release, or a bombing run with no target). Adjustable in flight.
-        [KSPField(isPersistant = true, guiActive = true, guiName = "Release interval", guiUnits = " s"),
+        [KSPField(isPersistant = true, guiActive = true, guiName = "Release interval", guiUnits = " s",
+            groupName = PlutoReadout.WarheadGroup, groupDisplayName = PlutoReadout.WarheadGroupTitle),
             UI_FloatRange(minValue = 2f, maxValue = 120f, stepIncrement = 1f, scene = UI_Scene.Flight)]
         public float autoReleaseSeconds = (float)PlutoConstants.AutoReleaseSeconds;
 
-        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Warheads")]
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Warheads left",
+            groupName = PlutoReadout.WarheadGroup, groupDisplayName = PlutoReadout.WarheadGroupTitle)]
         public int warheadsLeft = PlutoConstants.WarheadCount;
 
-        [KSPField(isPersistant = true, guiActive = true, guiName = "Auto-release"),
+        [KSPField(isPersistant = true, guiActive = true, guiName = "Auto-release", groupName = PlutoReadout.WarheadGroup, groupDisplayName = PlutoReadout.WarheadGroupTitle),
             UI_Toggle(disabledText = "Off", enabledText = "On", scene = UI_Scene.Flight)]
         public bool autoRelease;
 
-        [KSPField(isPersistant = true, guiActive = true, guiName = "Release on target (bombing run)"),
+        [KSPField(isPersistant = true, guiActive = true, guiName = "Release on target (bombing run)",
+            groupName = PlutoReadout.WarheadGroup, groupDisplayName = PlutoReadout.WarheadGroupTitle),
             UI_Toggle(disabledText = "Off", enabledText = "On", scene = UI_Scene.Flight)]
         public bool releaseOnTarget;
 
@@ -88,7 +91,7 @@ namespace ProjectPluto
             }
         }
 
-        [KSPEvent(guiActive = true, guiName = "Release warhead")]
+        [KSPEvent(guiActive = true, guiName = "Release warhead", groupName = PlutoReadout.WarheadGroup, groupDisplayName = PlutoReadout.WarheadGroupTitle)]
         public void ReleaseWarheadEvent() => ReleaseWarhead();
 
         [KSPAction("Release warhead")]
