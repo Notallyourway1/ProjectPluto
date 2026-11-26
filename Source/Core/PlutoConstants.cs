@@ -17,8 +17,12 @@ namespace ProjectPluto
         public const double StructureLeakFraction = 0.002;
         public const double HotCoreKWPerK = 50;
         public const double TempTimeConstant = 10;
-        // Scoop capture area (gameplay choice; gives about 1,000 kg/s at Mach 3 at sea level, near Tory II-C's 910 kg/s).
-        public const double IntakeAreaM2 = 0.8;
+        // Scoop capture area: the mouth of the ventral intake pod, about 1.3 m across (gameplay choice;
+        // about 1,750 kg/s at Mach 3 at sea level).
+        public const double IntakeAreaM2 = 1.4;
+        // KSP's drag is far higher than a real missile's, so the physics thrust is multiplied by this before
+        // the engine delivers it (gameplay choice; the part config can override it).
+        public const double ThrustMultiplier = 1.5;
         // Inlet overspeed (gameplay estimate): above UnstartMach the scoop unstarts and captures only
         // UnstartCapture of its air until held below RestartMach for RestartSeconds.
         public const double UnstartMach = 4.5;

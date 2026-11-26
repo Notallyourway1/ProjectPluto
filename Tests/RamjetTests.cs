@@ -22,12 +22,13 @@ namespace ProjectPluto.Tests
             Assert.Equal(0, Run(0, SeaLevelDensity, 1020, SeaLevelTemp).ThrustN, 1e-6, "cold reactor");
         }
 
-        // Mach 3 at sea level, full power: about 1,000 kg/s of air heated ~600 K → roughly 280 kN.
+        // Mach 3 at sea level, full power: about 1,750 kg/s of air heated ~340 K → roughly 290 kN
+        // (before the gameplay thrust multiplier).
         public static void Ramjet_Mach3SeaLevelFullPower()
         {
             var r = Run(600, SeaLevelDensity, 1020, SeaLevelTemp);
-            Assert.Equal(1000, r.MassFlowKgS, 20, "mass flow");
-            Assert.Equal(280e3, r.ThrustN, 30e3, "thrust");
+            Assert.Equal(1750, r.MassFlowKgS, 20, "mass flow");
+            Assert.Equal(290e3, r.ThrustN, 30e3, "thrust");
             Assert.Equal(1, r.CoolingFraction, 1e-9, "air can carry full power away");
         }
 

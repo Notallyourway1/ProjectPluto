@@ -37,13 +37,14 @@ These are gameplay choices, not history:
 - **Three integrated boosters** (sources say "several" without a number), 1,500 kN for about 20 s.
 - **Reactor timing:** it warms up from booster ignition and reaches full power at burnout. The real
   reactor was only to be switched on at cruise altitude far from people.
-- **Engine physics:** thrust comes from an ideal-ramjet model: air captured by a 0.8 m² scoop
-  (about 1,000 kg/s at Mach 3 at sea level, near Tory II-C's 910 kg/s), heated by the reactor to no
-  hotter than the 1,277 °C core, and expelled faster than it entered, with 85% inlet and nozzle
-  efficiency. That gives about 280 kN at Mach 3 at sea level (Tory II-C made about 170 kN at a
-  simulated Mach 2.8), nothing at rest, less in thin air, and no thrust near Mach 4.8 at sea level
-  (higher in colder air), where ram heating alone brings the air to core temperature. Other planets'
-  atmospheres use their own gas properties.
+- **Engine physics:** thrust comes from an ideal-ramjet model: air captured by the 1.4 m² mouth of
+  the intake pod (about 1,750 kg/s at Mach 3 at sea level; Tory II-C took 910 kg/s), heated by the
+  reactor to no hotter than the 1,277 °C core, and expelled faster than it entered, with 85% inlet and
+  nozzle efficiency. KSP's drag is far higher than a real missile's, so that thrust is multiplied by
+  1.5 (`thrustMultiplier` in the part config). The result is about 190 kN at Mach 0.8 and 440 kN at
+  Mach 3 at sea level (Tory II-C made about 170 kN at a simulated Mach 2.8), nothing at rest, less in
+  thin air, and no thrust near Mach 4.8 at sea level (higher in colder air), where ram heating alone
+  brings the air to core temperature. Other planets' atmospheres use their own gas properties.
 - **Reactor governor and SCRAM:** power is limited to the heat the airflow can carry away. Power
   rises at 5% a second but control rods can cut it at up to 500% a second, so a sudden loss of air
   (inlet unstart, booster burnout) is ridden out; the core still shuts down (SCRAM) above 1,500 °C.
@@ -98,9 +99,9 @@ These are gameplay choices, not history:
 2. **Booster burnout.** The boosters drop off by themselves, the reactor is at full power and the
    ramjet takes over. The right-click menu shows reactor state, power, core temperature and cooling
    airflow. You can **SCRAM** and **Restart** the reactor (restart needs the core below 800 °C).
-3. **Fly it yourself** for as long as you like. The ramjet breathes air only: it gives little below
-   Mach 1, is strongest low down around Mach 3, fades in thin air, and stops above the atmosphere.
-   The right-click menu adds exhaust temperature and inlet state. Keep below Mach 4.5 or the inlet
+3. **Fly it yourself** for as long as you like. The ramjet breathes air only: it is weak below
+   Mach 0.7, is strongest low down around Mach 3, fades in thin air, and stops above the atmosphere.
+   The right-click menu adds ramjet thrust, exhaust temperature and inlet state. Keep below Mach 4.5 or the inlet
    unstarts.
 4. **Pick a target** (any craft, a planted flag, or an active navigation waypoint), or none to fly a
    straight line.

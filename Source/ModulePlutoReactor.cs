@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace ProjectPluto
@@ -15,6 +16,7 @@ namespace ProjectPluto
 
         [KSPField] public string ramjetEngineID = "Ramjet";
         [KSPField] public float electricRate = 5f;
+        [KSPField] public float thrustMultiplier = (float)PlutoConstants.ThrustMultiplier;
 
         [KSPField(guiActive = true, guiName = "Reactor")]
         public string stateText = "Cold";
@@ -26,6 +28,8 @@ namespace ProjectPluto
         public float airflow;
         [KSPField(guiActive = true, guiName = "Exhaust temperature", guiFormat = "F0", guiUnits = " °C")]
         public float exhaustTempC;
+        [KSPField(guiActive = true, guiName = "Ramjet thrust", guiFormat = "F0", guiUnits = " kN")]
+        public float thrustKN;
         [KSPField(guiActive = true, guiName = "Inlet")]
         public string inletText = "Started";
 
@@ -164,7 +168,9 @@ namespace ProjectPluto
                 RefreshControls();
 
             PlutoRamjet.Heat(ref air, Model.PowerMW * 1e6);
-            ApplyThrust(air.ThrustN);
+            double thrustN = air.ThrustN * Math.Max(0, thrustMultiplier);
+            thrustKN = (float)(thrustN / 1000);
+            ApplyThrust(thrustN);
             RecordTrail(air.ThrustN);
             double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);
             if (heatKW > 0 && Model.State != PlutoReactorState.Breached)

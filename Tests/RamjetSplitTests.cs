@@ -13,7 +13,7 @@ namespace ProjectPluto.Tests
                 // Reference: the original one-pass formula.
                 double mach2 = speed * speed / (1.4 * 287.05 * 260);
                 double tt0 = 260 * (1 + 0.2 * mach2);
-                double flow = speed * 0.8;
+                double flow = speed * PlutoConstants.IntakeAreaM2;
                 double absorb = speed > 0 ? flow * 1005 * System.Math.Max(0, PlutoRamjet.CoreTempK - tt0) : 0;
                 double heat = System.Math.Min(power, absorb);
                 double thrust = heat > 0
