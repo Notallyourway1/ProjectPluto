@@ -300,6 +300,16 @@ def build_launch_pad(Mu, asset_dir):
     for y in range(-6, 7, 2):
         add_box(mesh, (-0.55, y - 0.1, -0.45), (0.55, y + 0.1, -0.28), swatch["steel"])
     visible(rail, mesh)
+    # Lets the cradle be clicked in the editor; the plugin turns it off in flight so it cannot catch
+    # on the missile as it slides off.
+    rail_collider = node("RailCollider")
+    rail_collider.collider = Mu.MuColliderMesh(True)
+    rail_collider.collider.isTrigger = 0
+    rail_collider.collider.convex = 1
+    rail_mesh = new_mesh(Mu)
+    add_box(rail_mesh, (-0.55, -7.0, -0.6), (0.55, 7.0, 0.0), swatch["steel"])
+    rail_collider.collider.mesh = rail_mesh
+    rail.children.append(rail_collider)
     root.children.append(rail)
 
     stand = node("Stand", (0, 0, -0.6))

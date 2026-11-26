@@ -16,6 +16,7 @@ namespace ProjectPluto
         [KSPField] public string standTransform = "Stand";
         [KSPField] public string towerTransform = "Tower";
         [KSPField] public string footTransform = "Foot";
+        [KSPField] public string railColliderTransform = "RailCollider";
 
         [KSPField(isPersistant = true, guiActiveEditor = true, guiName = "Launch elevation", guiUnits = "°"),
             UI_FloatRange(minValue = 15f, maxValue = 90f, stepIncrement = 5f, scene = UI_Scene.Editor)]
@@ -63,6 +64,11 @@ namespace ProjectPluto
             else if (HighLogic.LoadedSceneIsFlight)
             {
                 Fields[nameof(launchElevation)].guiActiveEditor = false;
+                // The cradle's collider is only for clicking it in the editor.
+                Transform railCollider = part.FindModelTransform(railColliderTransform);
+                if (railCollider != null)
+                    foreach (Collider c in railCollider.GetComponents<Collider>())
+                        c.enabled = false;
                 if (!released)
                     part.PermanentGroundContact = true;
             }
