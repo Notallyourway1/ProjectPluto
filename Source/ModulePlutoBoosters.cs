@@ -73,10 +73,13 @@ namespace ProjectPluto
                 Jettison(true);
         }
 
+        private PartResource solidFuel;
+
         private double SolidFuelLeft()
         {
-            PartResource fuel = part.Resources["SolidFuel"];
-            return fuel != null ? fuel.amount : 0;
+            if (solidFuel == null)
+                solidFuel = part.Resources["SolidFuel"];
+            return solidFuel != null ? solidFuel.amount : 0;
         }
 
         [KSPEvent(guiActive = true, guiName = "Jettison boosters")]

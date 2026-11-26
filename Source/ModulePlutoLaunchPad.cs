@@ -25,6 +25,7 @@ namespace ProjectPluto
         [KSPField(isPersistant = true)] public float towerLength = 4f;
 
         private Transform rail, stand, tower, foot;
+        private readonly System.Collections.Generic.List<Collider> colliders = new System.Collections.Generic.List<Collider>();
         private FixedJoint anchor;
         private float editorTimer;
 
@@ -215,7 +216,8 @@ namespace ProjectPluto
             {
                 if (p == null || p.FindModuleImplementing<ModulePlutoLaunchPad>() != null)
                     continue;
-                foreach (Collider c in p.GetComponentsInChildren<Collider>())
+                p.GetComponentsInChildren(false, colliders);
+                foreach (Collider c in colliders)
                 {
                     if (c.enabled && !c.isTrigger)
                         lowest = Mathf.Min(lowest, c.bounds.min.y);

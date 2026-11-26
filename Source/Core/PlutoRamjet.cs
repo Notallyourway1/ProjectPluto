@@ -33,32 +33,49 @@ namespace ProjectPluto
             public double ThrustN;
             // How much of the reactor's full power the air could carry away (0..1).
             public double CoolingFraction;
+            // Heat the airflow could take up, and the flight speed (kept for Heat).
+            public double AbsorbableW;
+            public double SpeedMs;
         }
 
         // gamma and gasConstant default to air; pass the body's own (Kopernicus atmospheres) when known.
         public static Result Compute(double reactorPowerW, double densityKgM3, double speedMs, double ambientTempK,
             double intakeAreaM2 = PlutoConstants.IntakeAreaM2, double gamma = Gamma, double gasConstant = GasConstant)
         {
+            Result r = Intake(densityKgM3, speedMs, ambientTempK, intakeAreaM2, gamma, gasConstant);
+            Heat(ref r, reactorPowerW);
+            return r;
+        }
+
+        // The air side alone: airflow, ram temperature and cooling capacity, none of which depend on power.
+        public static Result Intake(double densityKgM3, double speedMs, double ambientTempK,
+            double intakeAreaM2 = PlutoConstants.IntakeAreaM2, double gamma = Gamma, double gasConstant = GasConstant)
+        {
             var r = new Result { StagnationTempK = ambientTempK, ExitTempK = ambientTempK };
             if (densityKgM3 <= 0 || speedMs <= 0 || ambientTempK <= 0)
                 return r;
 
-            double soundSpeed = Math.Sqrt(gamma * gasConstant * ambientTempK);
-            double mach = speedMs / soundSpeed;
-            r.StagnationTempK = ambientTempK * (1 + 0.5 * (gamma - 1) * mach * mach);
+            double machSquared = speedMs * speedMs / (gamma * gasConstant * ambientTempK);
+            r.StagnationTempK = ambientTempK * (1 + 0.5 * (gamma - 1) * machSquared);
             r.MassFlowKgS = densityKgM3 * speedMs * intakeAreaM2;
             r.ExitTempK = r.StagnationTempK;
-
-            double absorbable = r.MassFlowKgS * SpecificHeat * Math.Max(0, CoreTempK - r.StagnationTempK);
-            r.CoolingFraction = Math.Min(1, absorbable / (PlutoConstants.ReactorMaxMW * 1e6));
-            r.HeatAddedW = Math.Min(Math.Max(0, reactorPowerW), absorbable);
-            if (r.HeatAddedW <= 0)
-                return r;
-
-            r.ExitTempK = r.StagnationTempK + r.HeatAddedW / (r.MassFlowKgS * SpecificHeat);
-            double exitSpeed = speedMs * Math.Sqrt(r.ExitTempK / r.StagnationTempK);
-            r.ThrustN = Efficiency * r.MassFlowKgS * (exitSpeed - speedMs);
+            r.SpeedMs = speedMs;
+            r.AbsorbableW = r.MassFlowKgS * SpecificHeat * Math.Max(0, CoreTempK - r.StagnationTempK);
+            r.CoolingFraction = Math.Min(1, r.AbsorbableW / (PlutoConstants.ReactorMaxMW * 1e6));
             return r;
+        }
+
+        // Adds the reactor's heat to an Intake result: exit temperature and thrust.
+        public static void Heat(ref Result r, double reactorPowerW)
+        {
+            r.HeatAddedW = Math.Min(Math.Max(0, reactorPowerW), r.AbsorbableW);
+            r.ThrustN = 0;
+            r.ExitTempK = r.StagnationTempK;
+            if (r.HeatAddedW <= 0)
+                return;
+            r.ExitTempK = r.StagnationTempK + r.HeatAddedW / (r.MassFlowKgS * SpecificHeat);
+            double exitSpeed = r.SpeedMs * Math.Sqrt(r.ExitTempK / r.StagnationTempK);
+            r.ThrustN = Efficiency * r.MassFlowKgS * (exitSpeed - r.SpeedMs);
         }
     }
 }

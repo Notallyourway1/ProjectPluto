@@ -7,6 +7,11 @@ namespace ProjectPluto
     public sealed class ModulePlutoReactor : PartModule
     {
         private const string SaveKey = "reactorSave";
+        private const double RadiationIntervalSeconds = 0.1;
+        // Display names, cached so the state readout allocates nothing per frame.
+        private static readonly string[] StateNames = System.Enum.GetNames(typeof(PlutoReactorState));
+        private double radiationTimer;
+        private PlutoReactorState shownState = (PlutoReactorState)(-1);
 
         [KSPField] public string ramjetEngineID = "Ramjet";
         [KSPField] public float electricRate = 5f;
@@ -143,7 +148,7 @@ namespace ProjectPluto
             double gasConstant = body.atmosphereMolarMass > 0
                 ? IdealGasConstant / body.atmosphereMolarMass
                 : PlutoRamjet.GasConstant;
-            PlutoRamjet.Result air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
+            PlutoRamjet.Result air = PlutoRamjet.Intake(vessel.atmDensity, vessel.srfSpeed,
                 vessel.atmosphericTemperature, area, gamma, gasConstant);
             double flow = air.CoolingFraction;
             double demand = Model.State == PlutoReactorState.Warming
@@ -158,8 +163,7 @@ namespace ProjectPluto
             if (before != Model.State)
                 RefreshControls();
 
-            air = PlutoRamjet.Compute(Model.PowerMW * 1e6, vessel.atmDensity, vessel.srfSpeed,
-                vessel.atmosphericTemperature, area, gamma, gasConstant);
+            PlutoRamjet.Heat(ref air, Model.PowerMW * 1e6);
             ApplyThrust(air.ThrustN);
             RecordTrail(air.ThrustN);
             double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);
@@ -168,15 +172,25 @@ namespace ProjectPluto
             exhaustTempC = (float)(air.ExitTempK - 273.15);
             if (Model.IsPowered)
             {
-                part.RequestResource("ElectricCharge", -electricRate * dt);
-                PlutoRadiationScenario.Instance?.IrradiateFrom(vessel.mainBody, part.transform.position,
-                    Model.PowerMW, dt, vessel);
+                part.RequestResource(PartResourceLibrary.ElectricityHashcode, -electricRate * dt);
+                // Dose is integrated at 10 Hz: the total does not need physics-rate updates.
+                radiationTimer += dt;
+                if (radiationTimer >= RadiationIntervalSeconds)
+                {
+                    PlutoRadiationScenario.Instance?.IrradiateFrom(vessel.mainBody, part.transform.position,
+                        Model.PowerMW, radiationTimer, vessel);
+                    radiationTimer = 0;
+                }
             }
 
             powerMW = (float)Model.PowerMW;
             coreTempC = (float)Model.CoreTempC;
             airflow = (float)flow;
-            stateText = Model.State.ToString();
+            if (Model.State != shownState)
+            {
+                shownState = Model.State;
+                stateText = StateNames[(int)shownState];
+            }
         }
 
         // The nozzle glows with the exhaust temperature while the ramjet runs, and cools when it stops.

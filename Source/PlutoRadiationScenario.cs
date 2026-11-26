@@ -18,6 +18,9 @@ namespace ProjectPluto
 
         public static PlutoRadiationScenario Instance { get; private set; }
 
+        private const double BreachIntervalSeconds = 0.1;
+        private double breachTimer;
+
         private readonly Dictionary<string, double> doses = new Dictionary<string, double>();
         private readonly List<Breach> breaches = new List<Breach>();
         // Reused every physics frame so dosing allocates nothing.
@@ -147,8 +150,13 @@ namespace ProjectPluto
         {
             if (!HighLogic.LoadedSceneIsFlight || breaches.Count == 0)
                 return;
+            // Dose is integrated at 10 Hz: the total does not need physics-rate updates.
+            breachTimer += TimeWarp.fixedDeltaTime;
+            if (breachTimer < BreachIntervalSeconds)
+                return;
+            double dt = breachTimer;
+            breachTimer = 0;
             double now = Planetarium.GetUniversalTime();
-            double dt = TimeWarp.fixedDeltaTime;
             for (int i = breaches.Count - 1; i >= 0; i--)
             {
                 Breach b = breaches[i];
