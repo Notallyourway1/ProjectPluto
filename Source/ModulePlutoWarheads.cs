@@ -26,8 +26,12 @@ namespace ProjectPluto
 
         [KSPField(isPersistant = true)] public double nextAutoReleaseUT = -1;
 
+        // How often a held automatic release checks again whether it has become safe.
+        private const double SafetyRetrySeconds = 1;
+
         private Transform hatch;
         private bool lastAutoRelease;
+        private bool holdingWarned;
 
         public override string GetInfo() =>
             $"{PlutoConstants.WarheadCount} thermonuclear warheads, {PlutoConstants.WarheadMassT:0.#} t each " +
@@ -56,8 +60,21 @@ namespace ProjectPluto
 
             if (autoRelease && warheadsLeft > 0 && nextAutoReleaseUT >= 0 && now >= nextAutoReleaseUT)
             {
-                ReleaseWarhead();
-                nextAutoReleaseUT = now + autoReleaseSeconds;
+                if (ReleaseWarhead(onlyIfSafe: true))
+                {
+                    nextAutoReleaseUT = now + autoReleaseSeconds;
+                    holdingWarned = false;
+                }
+                else
+                {
+                    // Too slow or low: the missile would be caught in its own blast. Try again shortly.
+                    nextAutoReleaseUT = now + SafetyRetrySeconds;
+                    if (!holdingWarned)
+                        ScreenMessages.PostScreenMessage(
+                            "Auto-release holding: too slow or low — the missile would be inside the blast.",
+                            5f, ScreenMessageStyle.UPPER_CENTER);
+                    holdingWarned = true;
+                }
             }
         }
 
@@ -70,17 +87,23 @@ namespace ProjectPluto
         [KSPAction("Toggle auto-release")]
         public void ToggleAutoReleaseAction(KSPActionParam param) => autoRelease = !autoRelease;
 
-        // Throws one warhead out of the top hatch. Returns false if none are left or not in flight.
-        public bool ReleaseWarhead()
+        // Throws one warhead out of the top hatch. Returns false if none are left, not in flight, or
+        // (onlyIfSafe) the missile would still be inside this warhead's blast.
+        public bool ReleaseWarhead(bool onlyIfSafe = false)
         {
             if (!InFlight || warheadsLeft <= 0)
                 return false;
 
             CelestialBody body = vessel.mainBody;
             ReleaseState(body, out Vector3 origin, out PlutoVec position, out PlutoVec localVelocity);
+            bool unsafeRelease = InsideBlast(body, position, localVelocity);
+            if (unsafeRelease && onlyIfSafe)
+                return false;
+            if (unsafeRelease)
+                ScreenMessages.PostScreenMessage("Warning: too slow or low — the missile will be inside this warhead's blast.",
+                    5f, ScreenMessageStyle.UPPER_CENTER);
             Vector3 velocity = body.transform.TransformDirection(
                 new Vector3((float)localVelocity.X, (float)localVelocity.Y, (float)localVelocity.Z));
-            WarnIfInsideBlast(body, position, localVelocity);
 
             GameObject bomb = CreateBombVisual(origin);
             PlutoFallingObject falling = PlutoFallingObject.Attach(bomb, body, origin, velocity);
@@ -126,13 +149,11 @@ namespace ProjectPluto
             velocity = PlutoBallistics.TossVelocity(PlutoFallingObject.ToLocalVector(body, vessel.srf_velocity), up);
         }
 
-        private void WarnIfInsideBlast(CelestialBody body, PlutoVec position, PlutoVec tossVelocity)
+        private bool InsideBlast(CelestialBody body, PlutoVec position, PlutoVec tossVelocity)
         {
             PlutoVec impact = Predict(body, position, tossVelocity, out double fallTime);
             PlutoVec missileVelocity = PlutoFallingObject.ToLocalVector(body, vessel.srf_velocity);
-            if (PlutoBallistics.MissileInsideBlast(position, missileVelocity, impact, fallTime, PlutoConstants.DamageRadiusM))
-                ScreenMessages.PostScreenMessage("Warning: too slow or low — the missile will be inside this warhead's blast.",
-                    5f, ScreenMessageStyle.UPPER_CENTER);
+            return PlutoBallistics.MissileInsideBlast(position, missileVelocity, impact, fallTime, PlutoConstants.DamageRadiusM);
         }
 
         private static double DragPerM(double density) => SeaLevelDragPerM * Math.Max(0, density) / SeaLevelDensity;

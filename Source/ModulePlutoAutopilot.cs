@@ -233,8 +233,16 @@ namespace ProjectPluto
                 PlutoVec impact = warheads.PredictImpactBodyRelative();
                 PlutoVec targetLocal = PlutoFallingObject.ToLocalPoint(body, target.Position);
                 PlutoVec trackLocal = PlutoFallingObject.ToLocalVector(body, track);
-                if (toss.ShouldRelease(impact, targetLocal, trackLocal) && warheads.ReleaseWarhead())
+                if (!toss.ShouldRelease(impact, targetLocal, trackLocal))
+                    return;
+                if (warheads.ReleaseWarhead(onlyIfSafe: true))
                     run.NotifyReleasedOnTarget();
+                else
+                {
+                    // Releasing now would destroy the missile with its own warhead.
+                    run.Abort("Release held: too slow or low, the missile would be inside the blast. Run aborted.");
+                    Finish();
+                }
                 return;
             }
             if (!runOwnsAutoRelease && !warheads.autoRelease)
