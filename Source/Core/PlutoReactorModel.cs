@@ -66,6 +66,11 @@ namespace ProjectPluto
                 Scram();
         }
 
+        // Power wanted this frame. During the boost the reactor warms to full power whatever the throttle
+        // (design ruling); a restart in flight follows the throttle and the airflow like normal running.
+        public static double Demand(PlutoReactorState state, bool boostersAttached, double throttle, double airflowFraction) =>
+            state == PlutoReactorState.Warming && boostersAttached ? 1 : GovernedDemand(throttle, airflowFraction);
+
         // Throttle demand limited to what the current airflow can cool at design temperature.
         public static double GovernedDemand(double throttle, double airflowFraction) =>
             Math.Min(Clamp01(throttle), Clamp01(airflowFraction));

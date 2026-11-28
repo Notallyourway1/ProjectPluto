@@ -72,8 +72,11 @@ namespace ProjectPluto
         private float veilAlpha;
         private Light waveLight;
         private PlutoHeatHaze haze;
-        private Color ambientBefore;
         private bool ambientApplied;
+        // Shared by every detonation: the ambient light before the first of any overlapping flashes,
+        // put back only when the last one ends.
+        private static int ambientFlashes;
+        private static Color ambientBase;
 
         private Light flash;
         private Transform fireballCore;
@@ -183,7 +186,7 @@ namespace ProjectPluto
             {
                 // Additive blending makes the flash, rings and streaks glow; fall back to plain alpha.
                 Shader additive = FindShader(AdditiveShaderNames) ?? shader;
-                burstTexture = PlutoBurstQuads.CreateAtlas();
+                burstTexture = SharedBurstTexture();
                 burstMaterial = new Material(additive) { mainTexture = burstTexture };
                 burst = new PlutoBurstQuads(transform, burstMaterial, BurstQuadCapacity);
                 InitializeDistribution(VacuumParticles);
@@ -198,7 +201,7 @@ namespace ProjectPluto
             waveLight.type = LightType.Point;
             waveLight.shadows = LightShadows.None;
             waveLight.enabled = false;
-            glowTexture = CreateGlowTexture();
+            glowTexture = SharedGlowTexture();
             glowMaterial = new Material(shader) { mainTexture = glowTexture };
             glow = new PlutoFireballGlow(transform, glowMaterial, FirePuffs);
             InitializeCloud();
@@ -433,6 +436,12 @@ namespace ProjectPluto
 
         }
 
+        // Built once and shared by every detonation (16 warheads would otherwise rebuild them each time).
+        private static Texture2D sharedGlow, sharedBurst;
+        private static Texture2D SharedGlowTexture() => sharedGlow != null ? sharedGlow : sharedGlow = CreateGlowTexture();
+        private static Texture2D SharedBurstTexture() =>
+            sharedBurst != null ? sharedBurst : sharedBurst = PlutoBurstQuads.CreateAtlas();
+
         private static Texture2D CreateGlowTexture()
         {
             const int size = 64;
@@ -579,10 +588,13 @@ namespace ProjectPluto
                 return;
 
             if (!ambientApplied)
-                ambientBefore = RenderSettings.ambientLight;
+            {
+                if (ambientFlashes++ == 0)
+                    ambientBase = RenderSettings.ambientLight;
+                ambientApplied = true;
+            }
             Color flashColor = inAtmosphere ? new Color(1f, 0.90f, 0.72f) : new Color(0.80f, 0.88f, 1f);
-            RenderSettings.ambientLight = Color.Lerp(ambientBefore, flashColor, 0.5f * pulse);
-            ambientApplied = true;
+            RenderSettings.ambientLight = Color.Lerp(ambientBase, flashColor, 0.5f * pulse);
         }
 
         private void RestoreAmbient()
@@ -590,8 +602,12 @@ namespace ProjectPluto
             if (!ambientApplied)
                 return;
 
-            RenderSettings.ambientLight = ambientBefore;
             ambientApplied = false;
+            if (--ambientFlashes <= 0)
+            {
+                ambientFlashes = 0;
+                RenderSettings.ambientLight = ambientBase;
+            }
         }
 
         // There is no air to carry a shock wave, so this is only a brief jolt from the flash,
@@ -945,12 +961,8 @@ namespace ProjectPluto
                 burst.Release();
             if (burstMaterial != null)
                 Destroy(burstMaterial);
-            if (burstTexture != null)
-                Destroy(burstTexture);
             if (glowMaterial != null)
                 Destroy(glowMaterial);
-            if (glowTexture != null)
-                Destroy(glowTexture);
             if (cloudMaterial != null)
                 Destroy(cloudMaterial);
             if (shockFront != null)

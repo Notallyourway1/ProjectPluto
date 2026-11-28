@@ -43,6 +43,9 @@ namespace ProjectPluto
         private int drawnCount = -1;
         private float lookTimer;
         private readonly Gradient gradient = new Gradient();
+        private Keyframe[] widthKeys;
+        private GradientColorKey[] colourKeys;
+        private GradientAlphaKey[] alphaKeys;
         private double lastRecord = double.NegativeInfinity;
         private double doseTimer;
 
@@ -227,9 +230,15 @@ namespace ProjectPluto
         private void RefreshLook(double now, int count, int total)
         {
             int keys = Mathf.Clamp(total, 2, LookKeys);
-            var widths = new Keyframe[keys];
-            var colours = new GradientColorKey[keys];
-            var alphas = new GradientAlphaKey[keys];
+            if (widthKeys == null || widthKeys.Length != keys)
+            {
+                widthKeys = new Keyframe[keys];
+                colourKeys = new GradientColorKey[keys];
+                alphaKeys = new GradientAlphaKey[keys];
+            }
+            Keyframe[] widths = widthKeys;
+            GradientColorKey[] colours = colourKeys;
+            GradientAlphaKey[] alphas = alphaKeys;
             for (int k = 0; k < keys; k++)
             {
                 int index = Mathf.RoundToInt((float)k * (total - 1) / (keys - 1));

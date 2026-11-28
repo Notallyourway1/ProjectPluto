@@ -99,7 +99,9 @@ namespace ProjectPluto
                 ramjetIsp = ramjet.atmosphereCurve.Evaluate(0f);
             if (HighLogic.LoadedSceneIsFlight)
             {
-                part.OnJustAboutToBeDestroyed += OnAboutToBeDestroyed;
+                // Part.Die fires this; OnJustAboutToBeDestroyed would also fire on quickload, revert and
+                // scene changes, breaching a hot reactor that never crashed.
+                GameEvents.onPartWillDie.Add(OnPartWillDie);
                 ApplyThrust(0);
                 RefreshControls();
             }
@@ -110,8 +112,7 @@ namespace ProjectPluto
             trail?.Release();
             if (nozzleGlow != null)
                 Destroy(nozzleGlow);
-            if (part != null)
-                part.OnJustAboutToBeDestroyed -= OnAboutToBeDestroyed;
+            GameEvents.onPartWillDie.Remove(OnPartWillDie);
         }
 
         // Called by the booster module at burnout: the ramjet takes over.
@@ -155,9 +156,8 @@ namespace ProjectPluto
             PlutoRamjet.Result air = PlutoRamjet.Intake(vessel.atmDensity, vessel.srfSpeed,
                 vessel.atmosphericTemperature, area, gamma, gasConstant);
             double flow = air.CoolingFraction;
-            double demand = Model.State == PlutoReactorState.Warming
-                ? 1
-                : PlutoReactorModel.GovernedDemand(vessel.ctrlState.mainThrottle, flow);
+            double demand = PlutoReactorModel.Demand(Model.State, boosters != null && !boosters.boostersJettisoned,
+                vessel.ctrlState.mainThrottle, flow);
             PlutoReactorState before = Model.State;
             Model.Update(dt, demand, flow);
 
@@ -300,9 +300,9 @@ namespace ProjectPluto
                 5f, ScreenMessageStyle.UPPER_CENTER);
         }
 
-        private void OnAboutToBeDestroyed()
+        private void OnPartWillDie(Part dying)
         {
-            if (HighLogic.LoadedSceneIsFlight && vessel != null && !vessel.packed)
+            if (dying == part && HighLogic.LoadedSceneIsFlight && vessel != null && !vessel.packed)
                 TriggerBreach();
         }
     }
