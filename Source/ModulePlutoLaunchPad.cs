@@ -139,6 +139,7 @@ namespace ProjectPluto
             if (released)
                 return;
             released = true;
+            PlutoAudio.Play(part, PlutoAudio.Cue.LauncherRelease);
             if (part.parent != null)
                 part.decouple(0f);
             else

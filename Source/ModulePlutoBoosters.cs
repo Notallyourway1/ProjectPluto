@@ -97,7 +97,10 @@ namespace ProjectPluto
         {
             boostersJettisoned = true;
             if (spawnDebris && vessel != null)
+            {
                 SpawnDebris();
+                PlutoAudio.Play(part, PlutoAudio.Cue.BoosterJettison);
+            }
 
             if (boostEngine != null)
             {

@@ -45,6 +45,7 @@ namespace ProjectPluto
             if (watchedHit)
                 PlutoCameraZoom.Preserve();
             PlutoDetonationEffect.Spawn(center, body, SizeScale, (float)PlutoConstants.CloudTopM, QualityFor(center));
+            PlutoAudio.Blast(center, body);
 
             // A Pluto caught in the blast breaches (its own warheads do not go off); everything else explodes.
             foreach (Part p in targets)

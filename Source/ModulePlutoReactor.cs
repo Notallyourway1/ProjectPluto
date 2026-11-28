@@ -17,6 +17,9 @@ namespace ProjectPluto
         [KSPField] public string ramjetEngineID = "Ramjet";
         [KSPField] public float electricRate = 5f;
         [KSPField] public float thrustMultiplier = (float)PlutoConstants.ThrustMultiplier;
+        // The ramjet's sound and exhaust, driven here from the thrust it really makes. (The engine's own
+        // running effect follows the throttle lever, so it roared on with the reactor off.)
+        [KSPField] public string ramjetEffectName = "ramjetRunning";
 
         // Two readout rows (see PlutoReadout): reactor state, power and core temperature; ramjet thrust,
         // exhaust temperature, cooling air and inlet state.
@@ -33,6 +36,7 @@ namespace ProjectPluto
         private float exhaustTempC;
         private float thrustKN;
         private double readoutTimer;
+        private float ramjetLevel;
 
         private const string NozzleGlowTransform = "NozzleGlow";
         // Seconds for the nozzle to heat up or cool down visibly.
@@ -126,8 +130,14 @@ namespace ProjectPluto
 
         public void FixedUpdate()
         {
-            if (!HighLogic.LoadedSceneIsFlight || vessel == null || vessel.packed)
+            if (!HighLogic.LoadedSceneIsFlight || vessel == null)
                 return;
+            if (vessel.packed)
+            {
+                // On-rails time warp: no thrust, so no engine sound left hanging at its last level.
+                SetRamjetLevel(0);
+                return;
+            }
 
             if (Model.State == PlutoReactorState.Cold && boosters != null && boosters.BoostEngineIgnited)
                 Model.Start();
@@ -137,6 +147,7 @@ namespace ProjectPluto
             switch (inlet.Update(dt, vessel.mach))
             {
                 case PlutoInlet.Change.Unstarted:
+                    PlutoAudio.Play(part, PlutoAudio.Cue.InletUnstart);
                     ScreenMessages.PostScreenMessage(
                         $"Inlet unstart above Mach {PlutoConstants.UnstartMach:0.0}: thrust and cooling lost. " +
                         $"Slow below Mach {PlutoConstants.RestartMach:0.0} to restart.", 6f, ScreenMessageStyle.UPPER_CENTER);
@@ -162,8 +173,11 @@ namespace ProjectPluto
             Model.Update(dt, demand, flow);
 
             if (before == PlutoReactorState.Running && Model.State == PlutoReactorState.Scrammed)
+            {
                 ScreenMessages.PostScreenMessage("Reactor SCRAM: core overheated (not enough cooling air).",
                     5f, ScreenMessageStyle.UPPER_CENTER);
+                PlutoAudio.Play(part, PlutoAudio.Cue.ScramAlarm);
+            }
             if (before != Model.State)
                 RefreshControls();
 
@@ -171,6 +185,8 @@ namespace ProjectPluto
             double thrustN = air.ThrustN * Math.Max(0, thrustMultiplier);
             thrustKN = (float)(thrustN / 1000);
             ApplyThrust(thrustN);
+            bool pushing = ramjet != null && ramjet.EngineIgnited && !ramjet.flameout;
+            SetRamjetLevel(pushing ? (float)PlutoSoundModel.RamjetLevel(air.ThrustN, 1) : 0f);
             RecordTrail(air.ThrustN);
             double heatKW = PlutoReactorModel.StructureHeatKW(Model.PowerMW, Model.CoreTempC);
             if (heatKW > 0 && Model.State != PlutoReactorState.Breached)
@@ -233,6 +249,14 @@ namespace ProjectPluto
             trail.Record(ramjet.thrustTransforms[0].position, Model.PowerMW, now);
         }
 
+        private void SetRamjetLevel(float level)
+        {
+            if (level == ramjetLevel || string.IsNullOrEmpty(ramjetEffectName))
+                return;
+            ramjetLevel = level;
+            part.Effect(ramjetEffectName, level);
+        }
+
         // The ramjet's thrust comes from the physics model; KSP's engine only delivers it.
         private void ApplyThrust(double thrustN)
         {
@@ -250,6 +274,8 @@ namespace ProjectPluto
             groupDisplayName = PlutoReadout.GroupTitle)]
         public void Scram()
         {
+            if (Model.IsPowered)
+                PlutoAudio.Play(part, PlutoAudio.Cue.ScramAlarm);
             Model.Scram();
             RefreshControls();
         }

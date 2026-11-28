@@ -131,6 +131,7 @@ namespace ProjectPluto
             };
 
             warheadsLeft--;
+            PlutoAudio.Play(part, PlutoAudio.Cue.WarheadRelease);
             part.UpdateMass();
             GameEvents.onVesselWasModified.Fire(vessel);
             RefreshControls();

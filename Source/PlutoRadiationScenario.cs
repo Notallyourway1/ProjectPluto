@@ -25,6 +25,9 @@ namespace ProjectPluto
         private readonly List<Breach> breaches = new List<Breach>();
         // Reused every physics frame so dosing allocates nothing.
         private readonly List<KeyValuePair<Vessel, ProtoCrewMember>> dying = new List<KeyValuePair<Vessel, ProtoCrewMember>>();
+        // Highest dose one crewed part of the active craft took in the current dosing step (for the
+        // Geiger counter; parts of one craft are not added together).
+        private double activeStepSv;
 
         public override void OnAwake()
         {
@@ -76,6 +79,8 @@ namespace ProjectPluto
         // Adds a dose to everyone aboard a part; deaths wait for ApplyDeaths so crew lists stay valid.
         public void DosePart(Vessel v, Part p, double sv)
         {
+            if (sv > activeStepSv && v == FlightGlobals.ActiveVessel)
+                activeStepSv = sv;
             foreach (ProtoCrewMember kerbal in p.protoModuleCrew)
             {
                 if (AddDose(kerbal, sv))
@@ -83,8 +88,11 @@ namespace ProjectPluto
             }
         }
 
+        // Ends a dosing step: deaths, and the Geiger counter's reading.
         public void ApplyDeaths()
         {
+            PlutoAudio.ReportActiveDose(activeStepSv);
+            activeStepSv = 0;
             for (int i = 0; i < dying.Count; i++)
                 Kill(dying[i].Key, dying[i].Value);
             dying.Clear();
