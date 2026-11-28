@@ -20,6 +20,10 @@ namespace ProjectPluto
         // The ramjet's sound and exhaust, driven here from the thrust it really makes. (The engine's own
         // running effect follows the throttle lever, so it roared on with the reactor off.)
         [KSPField] public string ramjetEffectName = "ramjetRunning";
+        // The optional Waterfall plume (PlutoWaterfall.cfg) gets the same level through this controller of
+        // that module. Without Waterfall there is no such module and nothing is sent.
+        [KSPField] public string plumeModuleID = "plutoRamjetFX";
+        [KSPField] public string plumeController = "throttle";
 
         // Two readout rows (see PlutoReadout): reactor state, power and core temperature; ramjet thrust,
         // exhaust temperature, cooling air and inlet state.
@@ -37,6 +41,7 @@ namespace ProjectPluto
         private float thrustKN;
         private double readoutTimer;
         private float ramjetLevel;
+        private PlutoPlumeLink plume;
 
         private const string NozzleGlowTransform = "NozzleGlow";
         // Seconds for the nozzle to heat up or cool down visibly.
@@ -106,6 +111,7 @@ namespace ProjectPluto
                 // Part.Die fires this; OnJustAboutToBeDestroyed would also fire on quickload, revert and
                 // scene changes, breaching a hot reactor that never crashed.
                 GameEvents.onPartWillDie.Add(OnPartWillDie);
+                plume = PlutoWaterfall.Find(part, plumeModuleID, plumeController);
                 ApplyThrust(0);
                 RefreshControls();
             }
@@ -251,6 +257,21 @@ namespace ProjectPluto
 
         private void SetRamjetLevel(float level)
         {
+            // Checked every frame, not only on change: Waterfall sets itself up after this module starts
+            // and can rebuild its controllers later.
+            if (plume != null)
+            {
+                PlutoPlumeLink.Outcome outcome = plume.Push(level);
+                if (outcome == PlutoPlumeLink.Outcome.GaveUp || outcome == PlutoPlumeLink.Outcome.Failed)
+                {
+                    Debug.LogWarning($"[ProjectPluto] Waterfall plume '{plumeModuleID}' controller " +
+                        $"'{plumeController}' " + (outcome == PlutoPlumeLink.Outcome.Failed
+                            ? $"failed: {plume.Error.Message}"
+                            : "never appeared (needs linkedTo = custom)") +
+                        "; the plume will not follow thrust.");
+                    plume = null;
+                }
+            }
             if (level == ramjetLevel || string.IsNullOrEmpty(ramjetEffectName))
                 return;
             ramjetLevel = level;

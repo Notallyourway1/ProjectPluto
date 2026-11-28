@@ -60,7 +60,8 @@ These are gameplay choices, not history:
 - **Exhaust visuals:** the nozzle glows from dull red to orange with exhaust temperature, and the
   exhaust shows faint red shock diamonds. With **Waterfall** and **Stock Waterfall Effects**
   installed, an optional patch uses their afterburning-ramjet plume (the one they give the Whiplash):
-  heat shimmer and shock diamonds that grow with speed. Nothing else is needed without them.
+  heat shimmer and shock diamonds that grow with speed. Like the sound, the plume follows the thrust
+  the ramjet is really making, not the throttle. Nothing else is needed without them.
 - **Sounds:** the boosters roar; the ramjet's roar and shock diamonds follow the thrust it is really
   making, so they fall silent after a SCRAM, an inlet unstart or above the air, whatever the throttle.
   Clunks for the launcher letting go, the boosters dropping off and each warhead leaving its hatch;
